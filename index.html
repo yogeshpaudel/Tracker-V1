@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Civil Project Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #16191d; --ink-2: #5b6169; --ink-3: #8b9199; --ink-4: #b3b8be;
+  --line: #e7e9ec; --line-2: #f1f3f5;
+  --page: #f8f8f7; --card: #fff;
+  --accent: #2c5fd8; --accent-bg: #eef2fd; --accent-2: #1d4bb5;
+  --ok: #1a7f4b; --ok-bg: #e9f7ef;
+  --warn: #a86a08; --warn-bg: #fdf3e2;
+  --bad: #bc3126; --bad-bg: #fceceb;
+  --grey: #6b7178; --grey-bg: #f1f2f4;
+  --r: 9px;
+  --sh: 0 1px 2px rgba(16,19,23,.05), 0 1px 1px rgba(16,19,23,.03);
+  --sh-2: 0 8px 26px rgba(16,19,23,.1), 0 2px 7px rgba(16,19,23,.05);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  background: var(--page); color: var(--ink);
+  -webkit-font-smoothing: antialiased; font-size: 14px;
+}
+h1,h2,h3,h4 { margin: 0; font-weight: 600; letter-spacing: -.01em; }
+a { color: var(--accent); }
+
+header.top {
+  position: sticky; top: 0; z-index: 30; background: #fff;
+  border-bottom: 1px solid var(--line); padding: 0 22px;
+  display: flex; align-items: center; gap: 20px; height: 56px;
+}
+.brand { display: flex; align-items: center; gap: 9px; }
+.mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); color: #fff;
+        display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
+.brand h1 { font-size: 14.5px; }
+nav.tabs { display: flex; gap: 2px; margin-left: 8px; }
+nav.tabs button {
+  border: none; background: none; font: inherit; font-size: 13.5px; color: var(--ink-2);
+  padding: 7px 12px; border-radius: 7px; cursor: pointer; font-weight: 500;
+}
+nav.tabs button:hover { background: var(--line-2); color: var(--ink); }
+nav.tabs button.on { background: var(--ink); color: #fff; }
+.spacer { flex: 1; }
+.who { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-2); cursor: pointer;
+       padding: 5px 10px; border-radius: 7px; }
+.who:hover { background: var(--line-2); }
+.live { font-size: 11.5px; color: var(--ink-3); display: flex; align-items: center; gap: 5px; }
+.live .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-4); }
+.live.on .dot { background: var(--ok); }
+.live.on { color: var(--ok); }
+
+main { padding: 20px 22px 70px; max-width: 1500px; }
+.banner { margin: 0; padding: 9px 22px; background: var(--bad-bg); color: var(--bad); font-size: 13px; display: none; }
+
+button.btn { font: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer; border-radius: 7px;
+             padding: 8px 14px; border: 1px solid transparent; transition: background .12s, transform .07s; }
+button.btn:active { transform: scale(.98); }
+.btn-p { background: var(--ink); color: #fff; }
+.btn-p:hover { background: #000; }
+.btn-s { background: #fff; color: var(--ink-2); border-color: var(--line); }
+.btn-s:hover { background: var(--line-2); color: var(--ink); }
+.btn-d { background: var(--bad-bg); color: var(--bad); }
+.btn-sm { padding: 5px 9px; font-size: 12.5px; }
+
+.row { display: flex; align-items: center; gap: 10px; }
+.between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.muted { color: var(--ink-3); }
+.small { font-size: 12.5px; }
+.tiny { font-size: 11.5px; }
+.sec-title { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase;
+             letter-spacing: .05em; margin: 26px 0 10px; }
+.sec-title:first-child { margin-top: 0; }
+
+.grid { display: grid; gap: 12px; }
+.kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.kpi { background: #fff; border: 1px solid var(--line); border-radius: 11px; padding: 13px 15px; box-shadow: var(--sh); }
+.kpi .lab { font-size: 12px; color: var(--ink-3); margin-bottom: 5px; }
+.kpi .val { font-size: 25px; font-weight: 600; letter-spacing: -.02em; }
+.kpi .sub { font-size: 11.5px; color: var(--ink-3); margin-top: 3px; }
+.kpi.alert .val { color: var(--bad); }
+.kpi.warn .val { color: var(--warn); }
+.kpi.good .val { color: var(--ok); }
+
+.card { background: #fff; border: 1px solid var(--line); border-radius: 11px; box-shadow: var(--sh); }
+.card-p { padding: 15px 17px; }
+
+table.tbl { width: 100%; border-collapse: collapse; background: #fff; }
+table.tbl th { text-align: left; font-size: 11.5px; font-weight: 600; color: var(--ink-3);
+               text-transform: uppercase; letter-spacing: .04em; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+table.tbl td { padding: 10px 12px; border-bottom: 1px solid var(--line-2); font-size: 13.5px; vertical-align: middle; }
+table.tbl tr:last-child td { border-bottom: none; }
+table.tbl tbody tr:hover { background: #fafbfc; }
+.tbl-wrap { border: 1px solid var(--line); border-radius: 11px; overflow: hidden; box-shadow: var(--sh); }
+
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600;
+        padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+.pill-accent { background: var(--accent-bg); color: var(--accent); }
+.pill-ok { background: var(--ok-bg); color: var(--ok); }
+.pill-warn { background: var(--warn-bg); color: var(--warn); }
+.pill-bad { background: var(--bad-bg); color: var(--bad); }
+.pill-grey { background: var(--grey-bg); color: var(--grey); }
+
+.bar { height: 6px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.bar > span { display: block; height: 100%; background: var(--accent); border-radius: 4px;
+              transition: width .45s cubic-bezier(.2,.7,.3,1); }
+.bar.ok > span { background: var(--ok); }
+.bar.warn > span { background: var(--warn); }
+.bar.bad > span { background: var(--bad); }
+
+.qa { display: flex; gap: 3px; }
+.qa i { flex: 1; height: 6px; border-radius: 3px; background: var(--line); cursor: pointer;
+        transition: background .15s, transform .1s; font-style: normal; }
+.qa i:hover { transform: scaleY(1.5); }
+.qa i.f { background: var(--ok); }
+.qa.sm i { height: 5px; }
+
+.pboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 13px; align-items: start; }
+.pcard { background: #fff; border: 1px solid var(--line); border-radius: 11px; padding: 14px 15px;
+         box-shadow: var(--sh); cursor: pointer; transition: box-shadow .16s, border-color .16s, transform .16s; }
+.pcard:hover { box-shadow: var(--sh-2); border-color: #d9dce0; transform: translateY(-1px); }
+.pcard.enter { animation: pop .34s cubic-bezier(.2,.7,.3,1); }
+@keyframes pop { from { opacity: 0; transform: translateY(9px) scale(.985); } to { opacity: 1; transform: none; } }
+
+.avatar { width: 23px; height: 23px; border-radius: 50%; color: #fff; font-size: 9.5px; font-weight: 700;
+          display: inline-flex; align-items: center; justify-content: center; border: 2px solid #fff; }
+.avstack { display: flex; }
+.avstack .avatar + .avatar { margin-left: -6px; }
+
+.gridtbl { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; }
+.gridtbl th, .gridtbl td { border-bottom: 1px solid var(--line-2); border-right: 1px solid var(--line-2); padding: 9px 11px; }
+.gridtbl th { font-size: 11.5px; font-weight: 600; color: var(--ink-3); text-transform: uppercase;
+              letter-spacing: .04em; background: #fbfbfa; position: sticky; top: 56px; z-index: 5; }
+.gridtbl th:last-child, .gridtbl td:last-child { border-right: none; }
+.gridtbl .namecol { position: sticky; left: 0; background: #fff; z-index: 4; min-width: 190px; }
+.gridtbl th.namecol { z-index: 6; background: #fbfbfa; }
+.cell { min-width: 132px; }
+.cell.na { background: #fbfbfa; }
+.cellinner { display: flex; flex-direction: column; gap: 5px; }
+.cellrow { display: flex; align-items: center; gap: 6px; }
+.cellrow label { font-size: 10.5px; color: var(--ink-3); width: 26px; flex: none; font-weight: 600; }
+
+.modal-bg { position: fixed; inset: 0; background: rgba(16,19,23,.4); z-index: 60; display: none;
+            align-items: flex-start; justify-content: center; padding: 44px 16px; overflow: auto;
+            animation: fade .14s ease; }
+@keyframes fade { from { opacity: 0 } to { opacity: 1 } }
+.modal { background: #fff; border-radius: 13px; box-shadow: 0 22px 60px rgba(16,19,23,.22);
+         width: 620px; max-width: 100%; padding: 22px 24px; }
+.modal.wide { width: 860px; }
+.modal h3 { font-size: 16px; margin-bottom: 4px; }
+.modal .sub { font-size: 12.5px; color: var(--ink-3); margin-bottom: 16px; }
+.f { margin-bottom: 11px; }
+.f label { display: block; font-size: 12px; color: var(--ink-2); margin-bottom: 4px; font-weight: 500; }
+.f input, .f select, .f textarea {
+  width: 100%; padding: 8px 10px; font: inherit; font-size: 13.5px; color: var(--ink);
+  border: 1px solid var(--line); border-radius: 7px; background: #fff;
+}
+.f input:focus, .f select:focus, .f textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
+.f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+.f3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 11px; }
+.acts { display: flex; gap: 9px; justify-content: flex-end; margin-top: 17px; }
+.box { background: var(--page); border-radius: 9px; padding: 12px 13px; margin-bottom: 12px; }
+
+.empty { text-align: center; padding: 46px 20px; color: var(--ink-3); }
+.empty h3 { font-size: 15px; color: var(--ink); margin-bottom: 6px; }
+.empty p { margin: 0 0 14px; font-size: 13.5px; }
+
+.cmt { padding: 9px 0; border-bottom: 1px solid var(--line-2); }
+.cmt:last-child { border-bottom: none; }
+.cmt .meta { font-size: 11.5px; color: var(--ink-3); margin-bottom: 3px; }
+.cmt .who { font-weight: 600; color: var(--ink-2); }
+
+.chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 7px;
+        background: var(--line-2); font-size: 12px; color: var(--ink-2); }
+.link-ico { color: var(--accent); text-decoration: none; font-size: 12px; }
+.warnbox { background: var(--warn-bg); border: 1px solid #f3dcae; border-radius: 9px; padding: 11px 13px;
+           font-size: 13px; color: var(--warn); margin-bottom: 12px; }
+.badbox { background: var(--bad-bg); border: 1px solid #f3cbc7; border-radius: 9px; padding: 11px 13px;
+          font-size: 13px; color: var(--bad); margin-bottom: 12px; }
+.okbox { background: var(--ok-bg); border: 1px solid #bfe4cf; border-radius: 9px; padding: 11px 13px;
+         font-size: 13px; color: var(--ok); margin-bottom: 12px; }
+.hr { height: 1px; background: var(--line); margin: 16px 0; }
+.backlink { background: none; border: none; font: inherit; font-size: 13px; color: var(--ink-2);
+            cursor: pointer; padding: 4px 0; }
+.backlink:hover { color: var(--ink); }
+.iconbtn { background: none; border: none; cursor: pointer; color: var(--ink-3); font-size: 14px;
+           padding: 3px 5px; border-radius: 5px; line-height: 1; }
+.iconbtn:hover { background: var(--line-2); color: var(--ink); }
+.scroll-x { overflow-x: auto; }
+
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="mark">C</div>
+    <div>
+      <h1>Civil Project Tracker</h1>
+      <div class="live" id="live"><span class="dot"></span><span id="live-text">Connecting…</span></div>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+  <div class="spacer"></div>
+  <div class="who" id="who"><span id="who-name">Set your name</span></div>
+</header>
+
+<div class="banner" id="banner"></div>
+<main id="main"></main>
+<div class="modal-bg" id="modal-bg"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
+  serverTimestamp, writeBatch
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const PHASES = ["30", "60", "90", "IFC"];
+const PHASE_TARGET = { "30": 30, "60": 60, "90": 90, "IFC": 100 };
+
+const QA_STEPS = [
+  { n: 1, label: "Self check" },
+  { n: 2, label: "Engineer check" },
+  { n: 3, label: "Independent review" },
+  { n: 4, label: "PE review" }
+];
+const QA_LABEL = ["Not started", "Q1 Self check", "Q2 Engineer check", "Q3 Independent review", "Q4 PE review"];
+
+const PHASE_STATUS = ["In progress", "Submitted", "Client review received", "Closed"];
+const BLOCK_REASONS = ["Waiting on client", "Waiting on reviewer", "Waiting on info", "Waiting on other discipline"];
+
+const CALC_WEIGHT = 0.6;
+const DRAW_WEIGHT = 0.4;
+const STALE_WORKING_DAYS = 3;
+
+function qaPercent(q) {
+  const n = Math.max(0, Math.min(4, Number(q) || 0));
+  return n * 25;
+}
+
+function structureProgress(s, calcWeight = CALC_WEIGHT) {
+  const dw = 1 - calcWeight;
+  return qaPercent(s.calcQ) * calcWeight + qaPercent(s.drawQ) * dw;
+}
+
+function phaseProgress(structures, calcWeight = CALC_WEIGHT) {
+  if (!structures.length) return 0;
+  const total = structures.reduce((a, s) => a + structureProgress(s, calcWeight), 0);
+  return total / structures.length;
+}
+
+function includedPhases(project) {
+  const ph = project.phases || {};
+  return PHASES.filter(p => ph[p] && ph[p].included !== false);
+}
+
+function phaseSlices(project) {
+  const inc = includedPhases(project);
+  const slices = [];
+  let prev = 0;
+  inc.forEach(p => {
+    const target = PHASE_TARGET[p];
+    slices.push({ phase: p, from: prev, to: target, span: target - prev });
+    prev = target;
+  });
+  if (slices.length) {
+    const last = slices[slices.length - 1];
+    if (last.to < 100) { last.to = 100; last.span = 100 - last.from; }
+  }
+  return slices;
+}
+
+function projectProgress(project, structuresByPhase, calcWeight = CALC_WEIGHT) {
+  const slices = phaseSlices(project);
+  if (!slices.length) return 0;
+  let total = 0;
+  slices.forEach(sl => {
+    const list = structuresByPhase[sl.phase] || [];
+    const pp = phaseProgress(list, calcWeight) / 100;
+    total += pp * sl.span;
+  });
+  return Math.max(0, Math.min(100, total));
+}
+
+function parseDate(d) {
+  if (!d) return null;
+  const dt = d instanceof Date ? d : new Date(d + (String(d).length === 10 ? "T00:00:00" : ""));
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
+function workingDaysBetween(from, to) {
+  const a = parseDate(from), b = parseDate(to);
+  if (!a || !b) return 0;
+  const sign = b < a ? -1 : 1;
+  let start = sign > 0 ? new Date(a) : new Date(b);
+  const end = sign > 0 ? new Date(b) : new Date(a);
+  let count = 0;
+  start.setHours(0, 0, 0, 0); end.setHours(0, 0, 0, 0);
+  while (start < end) {
+    start.setDate(start.getDate() + 1);
+    const day = start.getDay();
+    if (day !== 0 && day !== 6) count++;
+  }
+  return count * sign;
+}
+
+function remainingDays(s) {
+  const calcEst = Number(s.calcEstDays) || 0;
+  const drawEst = Number(s.drawEstDays) || 0;
+  const calcLeft = calcEst * (1 - qaPercent(s.calcQ) / 100);
+  const drawLeft = drawEst * (1 - qaPercent(s.drawQ) / 100);
+  return calcLeft + drawLeft;
+}
+
+function availabilityFactor(person, from, to) {
+  const blocks = (person && person.availability) || [];
+  const a = parseDate(from), b = parseDate(to);
+  if (!a || !b || b <= a) return 1;
+  let totalDays = 0, weighted = 0;
+  const cur = new Date(a);
+  while (cur < b) {
+    const day = cur.getDay();
+    if (day !== 0 && day !== 6) {
+      totalDays++;
+      let pct = 100;
+      blocks.forEach(bl => {
+        const s = parseDate(bl.from), e = parseDate(bl.to);
+        if (s && e && cur >= s && cur <= e) pct = Math.min(pct, Number(bl.percent) || 0);
+      });
+      weighted += pct / 100;
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return totalDays === 0 ? 1 : weighted / totalDays;
+}
+
+function slackDays(structure, deadline, person, today = new Date()) {
+  const dl = parseDate(deadline);
+  if (!dl) return null;
+  const avail = availabilityFactor(person, today, dl);
+  const capacityDays = workingDaysBetween(today, dl) * (avail <= 0 ? 0.0001 : avail);
+  return capacityDays - remainingDays(structure);
+}
+
+function isActionable(s) {
+  if (s.blockedReason) return false;
+  if ((Number(s.calcQ) || 0) >= 4 && (Number(s.drawQ) || 0) >= 4) return false;
+  return true;
+}
+
+function isStale(s, today = new Date()) {
+  if (!isActionable(s)) return false;
+  const last = parseDate(s.lastTouched);
+  if (!last) return false;
+  return workingDaysBetween(last, today) >= STALE_WORKING_DAYS;
+}
+
+function expectedProgress(phase, today = new Date()) {
+  const start = parseDate(phase && phase.startDate);
+  const end = parseDate(phase && phase.deadline);
+  if (!start || !end || end <= start) return null;
+  const total = end - start;
+  const elapsed = Math.max(0, Math.min(total, today - start));
+  return (elapsed / total) * 100;
+}
+
+function paceIndex(actualPct, expectedPct) {
+  if (expectedPct == null || expectedPct <= 0) return null;
+  return actualPct / expectedPct;
+}
+
+function activePhase(project) {
+  const inc = includedPhases(project);
+  for (const p of inc) {
+    const ph = project.phases[p];
+    if (ph.status !== "Closed") return p;
+  }
+  return inc.length ? inc[inc.length - 1] : null;
+}
+
+function projectRisk(project, structuresByPhase, today = new Date()) {
+  const ap = activePhase(project);
+  if (!ap) return { score: 0, reasons: [] };
+  const ph = project.phases[ap] || {};
+  const reasons = [];
+  let score = 0;
+
+  const dl = parseDate(ph.deadline);
+  if (dl) {
+    const days = workingDaysBetween(today, dl);
+    if (days < 0) { score += 60; reasons.push("Deadline passed"); }
+    else if (days <= 5) { score += 40; reasons.push("Due within a week"); }
+    else if (days <= 15) { score += 20; reasons.push("Due within 3 weeks"); }
+  }
+
+  const list = structuresByPhase[ap] || [];
+  const actual = phaseProgress(list);
+  const exp = expectedProgress(ph, today);
+  const pi = paceIndex(actual, exp);
+  if (pi != null && pi < 0.9) {
+    score += Math.min(40, Math.round((1 - pi) * 60));
+    reasons.push("Behind pace");
+  }
+
+  const staleCount = list.filter(s => isStale(s, today)).length;
+  if (staleCount) { score += Math.min(15, staleCount * 5); reasons.push(staleCount + " stale"); }
+
+  const blocked = list.filter(s => s.blockedReason).length;
+  if (blocked) { score += Math.min(10, blocked * 3); reasons.push(blocked + " blocked"); }
+
+  if (ph.status === "Submitted") { score = Math.max(0, score - 25); reasons.push("Submitted"); }
+
+  return { score, reasons, phase: ap, actual, expected: exp, pace: pi };
+}
+
+function daysWaiting(phase, today = new Date()) {
+  if (!phase || phase.status !== "Submitted") return null;
+  const d = parseDate(phase.submittedDate);
+  if (!d) return null;
+  return workingDaysBetween(d, today);
+}
+
+function slipDays(phase) {
+  const planned = parseDate(phase && phase.originalDeadline);
+  const actual = parseDate(phase && phase.submittedDate);
+  if (!planned || !actual) return null;
+  return workingDaysBetween(planned, actual);
+}
+
+function suggestReassignment(structure, deadline, people, allStructures, projectsById, today = new Date()) {
+  const role = "engineer";
+  const candidates = people.filter(p => p.id !== structure.engineerId && (p.roles || []).includes("Engineer"));
+  return candidates.map(p => {
+    const theirs = allStructures.filter(s => s.engineerId === p.id && isActionable(s));
+    let worst = null;
+    theirs.forEach(s => {
+      const proj = projectsById[s.projectId];
+      const dl = proj && proj.phases && proj.phases[s.phase] ? proj.phases[s.phase].deadline : null;
+      const sl = slackDays(s, dl, p, today);
+      if (sl != null && (worst == null || sl < worst)) worst = sl;
+    });
+    const projected = slackDays(structure, deadline, p, today);
+    return { person: p, currentLoad: theirs.length, worstSlack: worst, projectedSlack: projected };
+  }).filter(c => c.projectedSlack != null && c.projectedSlack > 0)
+    .sort((a, b) => b.projectedSlack - a.projectedSlack);
+}
+
+function fmtDate(d) {
+  const dt = parseDate(d);
+  if (!dt) return "—";
+  return dt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+function fmtShort(d) {
+  const dt = parseDate(d);
+  if (!dt) return "—";
+  return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+function todayISO() {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+function round(n, dp = 0) {
+  const f = Math.pow(10, dp);
+  return Math.round((Number(n) || 0) * f) / f;
+}
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCuS2GEhFowF2NQDp9wPVot0qCi96zzzjo",
+  authDomain: "pmo-ka.firebaseapp.com",
+  projectId: "pmo-ka",
+  storageBucket: "pmo-ka.firebasestorage.app",
+  messagingSenderId: "187122866752",
+  appId: "1:187122866752:web:770173cd9e6f3928189da5"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const COLLECTIONS = ["projects2", "structures", "people", "structureTypes", "comments", "activity"];
+
+const state = {
+  projects: [], structures: [], people: [], structureTypes: [], comments: [], activity: [],
+  ready: {}, me: null
+};
+
+const listeners = new Set();
+function onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+function emit() { listeners.forEach(fn => fn()); }
+
+const KEY_MAP = {
+  projects2: "projects", structures: "structures", people: "people",
+  structureTypes: "structureTypes", comments: "comments", activity: "activity"
+};
+
+function start(onError) {
+  COLLECTIONS.forEach(name => {
+    onSnapshot(collection(db, name), snap => {
+      state[KEY_MAP[name]] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      state.ready[name] = true;
+      emit();
+    }, err => onError && onError(err));
+  });
+}
+
+function allReady() {
+  return COLLECTIONS.every(c => state.ready[c]);
+}
+
+async function log(action, detail) {
+  try {
+    await addDoc(collection(db, "activity"), {
+      action, detail, who: state.me || "Unknown",
+      at: serverTimestamp(), atISO: new Date().toISOString()
+    });
+  } catch (e) { /* activity logging is best-effort */ }
+}
+
+async function addProject(data) {
+  const ref = await addDoc(collection(db, "projects2"), { ...data, created: serverTimestamp() });
+  await log("Created project", data.name);
+  return ref.id;
+}
+async function updateProject(id, updates, note) {
+  await updateDoc(doc(db, "projects2", id), updates);
+  if (note) await log("Updated project", note);
+}
+async function deleteProject(id) {
+  const batch = writeBatch(db);
+  state.structures.filter(s => s.projectId === id).forEach(s => batch.delete(doc(db, "structures", s.id)));
+  batch.delete(doc(db, "projects2", id));
+  await batch.commit();
+  await log("Deleted project", id);
+}
+
+async function addStructure(data) {
+  const ref = await addDoc(collection(db, "structures"), {
+    calcQ: 0, drawQ: 0, ...data, lastTouched: todayISO(), created: serverTimestamp()
+  });
+  await log("Added structure", data.name);
+  return ref.id;
+}
+async function updateStructure(id, updates, note) {
+  await updateDoc(doc(db, "structures", id), { ...updates, lastTouched: todayISO() });
+  if (note) await log("Updated structure", note);
+}
+async function deleteStructure(id) {
+  await deleteDoc(doc(db, "structures", id));
+  await log("Deleted structure", id);
+}
+
+async function addPerson(data) {
+  const ref = await addDoc(collection(db, "people"), { availability: [], ...data });
+  await log("Added person", data.name);
+  return ref.id;
+}
+async function updatePerson(id, updates) { await updateDoc(doc(db, "people", id), updates); }
+async function deletePerson(id) { await deleteDoc(doc(db, "people", id)); }
+
+async function addType(data) {
+  const ref = await addDoc(collection(db, "structureTypes"), data);
+  return ref.id;
+}
+async function updateType(id, updates) { await updateDoc(doc(db, "structureTypes", id), updates); }
+async function deleteType(id) { await deleteDoc(doc(db, "structureTypes", id)); }
+
+async function addComment(data) {
+  const ref = await addDoc(collection(db, "comments"), {
+    ...data, who: state.me || "Unknown", at: serverTimestamp(), atISO: new Date().toISOString()
+  });
+  return ref.id;
+}
+async function deleteComment(id) { await deleteDoc(doc(db, "comments", id)); }
+
+const SEED_TYPES = [
+  { name: "Dead-end structure", calcEstDays: 4, drawEstDays: 3 },
+  { name: "A-frame structure", calcEstDays: 3, drawEstDays: 2.5 },
+  { name: "Take-off tower", calcEstDays: 5, drawEstDays: 4 },
+  { name: "Bus support", calcEstDays: 2, drawEstDays: 1.5 },
+  { name: "Switch stand", calcEstDays: 2, drawEstDays: 1.5 },
+  { name: "CT / PT stand", calcEstDays: 1.5, drawEstDays: 1 },
+  { name: "Breaker support", calcEstDays: 2, drawEstDays: 1.5 },
+  { name: "Lightning mast", calcEstDays: 2.5, drawEstDays: 2 },
+  { name: "Shield wire pole", calcEstDays: 2, drawEstDays: 1.5 },
+  { name: "Transformer foundation", calcEstDays: 4, drawEstDays: 3 },
+  { name: "Control building foundation", calcEstDays: 4, drawEstDays: 3 },
+  { name: "Cable trench", calcEstDays: 2, drawEstDays: 2 },
+  { name: "Equipment foundation (general)", calcEstDays: 2.5, drawEstDays: 2 }
+];
+
+async function seedTypes() {
+  const existing = new Set(state.structureTypes.map(t => t.name));
+  const batch = writeBatch(db);
+  let n = 0;
+  SEED_TYPES.forEach(t => {
+    if (!existing.has(t.name)) { batch.set(doc(collection(db, "structureTypes")), t); n++; }
+  });
+  if (n) await batch.commit();
+  return n;
+}
+
+function newProjectShell(name, client) {
+  const t = todayISO();
+  const mk = () => ({ included: true, status: "In progress", deadline: "", originalDeadline: "", submittedDate: "", startDate: t });
+  return {
+    name, client, managerId: "", leadId: "", calcWeight: 0.6,
+    phases: { "30": mk(), "60": mk(), "90": mk(), "IFC": mk() }
+  };
+}
+
+function esc(s) {
+  return (s == null ? "" : String(s)).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function el(id) { return document.getElementById(id); }
+
+function initials(name) {
+  if (!name) return "?";
+  return String(name).trim().split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+}
+const AV = ["#2c5fd8", "#1a7f4b", "#a86a08", "#7a3fb5", "#bc3126", "#0f8b8b", "#b5417a"];
+function avColor(name) {
+  let h = 0;
+  for (const c of String(name || "")) h = (h * 31 + c.charCodeAt(0)) % AV.length;
+  return AV[h];
+}
+function avatar(name, title) {
+  return `<span class="avatar" style="background:${avColor(name)}" title="${esc(title || name || "Unassigned")}">${esc(initials(name))}</span>`;
+}
+
+function pill(text, kind) {
+  return `<span class="pill pill-${kind || "grey"}">${esc(text)}</span>`;
+}
+
+function bar(pct, kind) {
+  const p = Math.max(0, Math.min(100, Number(pct) || 0));
+  return `<div class="bar ${kind || ""}"><span style="width:${p}%"></span></div>`;
+}
+
+function qaBar(q, sid, field, small) {
+  const n = Number(q) || 0;
+  const labels = ["Q1 Self check", "Q2 Engineer check", "Q3 Independent review", "Q4 PE review"];
+  let h = `<div class="qa ${small ? "sm" : ""}">`;
+  for (let i = 1; i <= 4; i++) {
+    h += `<i class="${i <= n ? "f" : ""}" title="${labels[i - 1]}"
+      onclick="event.stopPropagation();window.__setQ('${sid}','${field}',${i})"></i>`;
+  }
+  return h + "</div>";
+}
+
+let modalCloser = null;
+function openModal(html, onMount) {
+  const bg = el("modal-bg");
+  bg.innerHTML = `<div class="modal ${html.wide ? "wide" : ""}">${html.body || html}</div>`;
+  bg.style.display = "flex";
+  bg.onclick = e => { if (e.target === bg) closeModal(); };
+  modalCloser = html.onClose || null;
+  if (onMount) onMount();
+}
+function closeModal() {
+  const bg = el("modal-bg");
+  bg.style.display = "none";
+  bg.innerHTML = "";
+  if (modalCloser) { const f = modalCloser; modalCloser = null; f(); }
+}
+function val(id) { const e = el(id); return e ? e.value.trim() : ""; }
+function setVal(id, v) { const e = el(id); if (e) e.value = v == null ? "" : v; }
+
+function banner(msg) {
+  const b = el("banner");
+  if (!b) return;
+  b.textContent = msg;
+  b.style.display = msg ? "block" : "none";
+}
+
+function opts(list, selected, valueKey, labelKey, placeholder) {
+  let h = placeholder ? `<option value="">${esc(placeholder)}</option>` : "";
+  list.forEach(o => {
+    const v = valueKey ? o[valueKey] : o;
+    const l = labelKey ? o[labelKey] : o;
+    h += `<option value="${esc(v)}" ${String(v) === String(selected) ? "selected" : ""}>${esc(l)}</option>`;
+  });
+  return h;
+}
+
+function confirmDialog(message, onYes) {
+  openModal(`<h3>Are you sure?</h3><p class="sub">${esc(message)}</p>
+    <div class="acts">
+      <button class="btn btn-s" onclick="window.__closeModal()">Cancel</button>
+      <button class="btn btn-d" id="cf-yes">Delete</button>
+    </div>`);
+  el("cf-yes").onclick = () => { closeModal(); onYes(); };
+}
+
+
+const view = { tab: "insights", projectId: null, prevRisk: {} };
+
+window.__closeModal = closeModal;
+
+/* ---------------- identity ---------------- */
+function loadMe() {
+  state.me = localStorage.getItem("ctk_me") || null;
+  return state.me;
+}
+function setMe(name) {
+  state.me = name;
+  localStorage.setItem("ctk_me", name);
+  render();
+}
+function askWhoAmI() {
+  const people = state.people.slice().sort((a, b) => a.name.localeCompare(b.name));
+  openModal(`<h3>Who are you?</h3>
+    <p class="sub">We remember this in your browser so "My work" and comment attribution know it's you.</p>
+    ${people.length ? `<div class="f"><label>Pick your name</label>
+      <select id="me-pick">${opts(people, state.me, "name", "name", "Select…")}</select></div>`
+    : `<div class="warnbox">No team members yet. Add people in the Team tab first, or type a name below.</div>`}
+    <div class="f"><label>${people.length ? "…or type a name" : "Your name"}</label><input id="me-type" placeholder="e.g. Hema" /></div>
+    <div class="acts"><button class="btn btn-s" onclick="window.__closeModal()">Cancel</button>
+      <button class="btn btn-p" id="me-save">Save</button></div>`);
+  el("me-save").onclick = () => {
+    const v = val("me-type") || val("me-pick");
+    if (!v) return;
+    closeModal(); setMe(v);
+  };
+}
+
+/* ---------------- helpers ---------------- */
+const byId = (list) => Object.fromEntries(list.map(o => [o.id, o]));
+function personName(id) { const p = state.people.find(x => x.id === id); return p ? p.name : ""; }
+function structuresOf(projectId) { return state.structures.filter(s => s.projectId === projectId); }
+function byPhase(list) {
+  const m = {};
+  PHASES.forEach(p => m[p] = []);
+  list.forEach(s => { if (!m[s.phase]) m[s.phase] = []; m[s.phase].push(s); });
+  return m;
+}
+function projProgress(p) {
+  return projectProgress(p, byPhase(structuresOf(p.id)), p.calcWeight || 0.6);
+}
+function deadlineFor(s) {
+  const p = state.projects.find(x => x.id === s.projectId);
+  return p && p.phases && p.phases[s.phase] ? p.phases[s.phase].deadline : null;
+}
+function personBy(id) { return state.people.find(x => x.id === id) || null; }
+function slackOf(s) { return slackDays(s, deadlineFor(s), personBy(s.engineerId)); }
+function myStructures() {
+  const me = state.me;
+  if (!me) return [];
+  const p = state.people.find(x => x.name === me);
+  if (!p) return [];
+  return state.structures.filter(s => s.engineerId === p.id || s.designerId === p.id);
+}
+function paceKind(pi) { if (pi == null) return ""; if (pi >= 0.95) return "ok"; if (pi >= 0.8) return "warn"; return "bad"; }
+
+/* ---------------- INSIGHTS ---------------- */
+function renderInsights() {
+  const P = state.projects, ST = state.structures;
+  const today = new Date();
+  const active = P.filter(p => p.status !== "Completed" && p.status !== "Cancelled");
+  const risks = active.map(p => ({ p, r: projectRisk(p, byPhase(structuresOf(p.id)), today) }));
+  const atRisk = risks.filter(x => x.r.score >= 45);
+  const stale = ST.filter(s => isStale(s, today));
+  const blocked = ST.filter(s => s.blockedReason);
+  const awaiting = [];
+  P.forEach(p => PHASES.forEach(ph => {
+    const d = daysWaiting(p.phases && p.phases[ph], today);
+    if (d != null) awaiting.push({ p, ph, days: d });
+  }));
+  awaiting.sort((a, b) => b.days - a.days);
+
+  const negSlack = ST.filter(s => isActionable(s)).map(s => ({ s, sl: slackOf(s) }))
+    .filter(x => x.sl != null && x.sl < 0).sort((a, b) => a.sl - b.sl);
+
+  const qaCounts = [0, 0, 0, 0, 0];
+  ST.filter(s => isActionable(s)).forEach(s => {
+    qaCounts[Math.min(4, Number(s.calcQ) || 0)]++;
+    qaCounts[Math.min(4, Number(s.drawQ) || 0)]++;
+  });
+
+  let h = `<div class="between" style="margin-bottom:16px">
+    <div><h2 style="font-size:17px">Insights</h2>
+    <div class="small muted">Portfolio health across ${active.length} active project${active.length === 1 ? "" : "s"}</div></div>
+  </div>`;
+
+  h += `<div class="grid kpis">
+    ${kpi("Active projects", active.length, "")}
+    ${kpi("At risk", atRisk.length, atRisk.length ? "alert" : "good", atRisk.length ? "behind pace or due soon" : "all on track")}
+    ${kpi("Negative slack", negSlack.length, negSlack.length ? "alert" : "good", "assignments that can't finish on time")}
+    ${kpi("Stale items", stale.length, stale.length ? "warn" : "good", "untouched 3+ working days")}
+    ${kpi("Blocked", blocked.length, blocked.length ? "warn" : "", "waiting on someone")}
+    ${kpi("Awaiting client", awaiting.length, awaiting.length ? "warn" : "", awaiting.length ? `oldest ${awaiting[0].days} wd` : "none submitted")}
+  </div>`;
+
+  if (negSlack.length) {
+    h += `<div class="sec-title">Overload — needs a decision</div><div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Structure</th><th>Project / phase</th><th>Engineer</th><th>Slack</th><th></th></tr></thead><tbody>`;
+    negSlack.slice(0, 10).forEach(({ s, sl }) => {
+      const p = state.projects.find(x => x.id === s.projectId);
+      h += `<tr><td><strong>${esc(s.name)}</strong></td>
+        <td class="small muted">${esc(p ? p.name : "?")} · ${esc(s.phase)}%</td>
+        <td>${avatar(personName(s.engineerId))} <span class="small">${esc(personName(s.engineerId) || "Unassigned")}</span></td>
+        <td>${pill(round(sl, 1) + " d", "bad")}</td>
+        <td><button class="btn btn-s btn-sm" onclick="window.__suggest('${s.id}')">Who can take it</button></td></tr>`;
+    });
+    h += `</tbody></table></div>`;
+  }
+
+  h += `<div class="sec-title">QA/QC pipeline — where work is sitting</div>
+    <div class="card card-p"><div class="grid" style="grid-template-columns:repeat(5,1fr)">`;
+  ["Not started", "Q1 done", "Q2 done", "Q3 done", "Q4 done"].forEach((lab, i) => {
+    h += `<div><div class="tiny muted">${lab}</div><div style="font-size:20px;font-weight:600">${qaCounts[i]}</div></div>`;
+  });
+  h += `</div><div class="tiny muted" style="margin-top:8px">Counting calc and drawing tracks separately across active structures. A pile-up at one step is your bottleneck.</div></div>`;
+
+  h += `<div class="sec-title">Project health</div>`;
+  if (!active.length) {
+    h += emptyState("No active projects", "Create one in the Projects tab.");
+  } else {
+    h += `<div class="tbl-wrap"><table class="tbl"><thead><tr>
+      <th>Project</th><th>Phase</th><th style="width:150px">Overall</th><th>Pace</th><th>Deadline</th><th>Flags</th>
+    </tr></thead><tbody>`;
+    risks.sort((a, b) => b.r.score - a.r.score).forEach(({ p, r }) => {
+      const pp = projProgress(p);
+      const ph = r.phase ? p.phases[r.phase] : null;
+      h += `<tr style="cursor:pointer" onclick="window.__openProject('${p.id}')">
+        <td><strong>${esc(p.name)}</strong><div class="tiny muted">${esc(p.client || "")}</div></td>
+        <td>${r.phase ? pill(r.phase + "%", "accent") : "—"}</td>
+        <td>${bar(pp)}<div class="tiny muted" style="margin-top:3px">${round(pp)}%</div></td>
+        <td>${r.pace == null ? '<span class="tiny muted">—</span>' : pill(round(r.pace * 100) + "%", paceKind(r.pace))}</td>
+        <td class="small">${ph ? fmtShort(ph.deadline) : "—"}</td>
+        <td class="tiny muted">${esc(r.reasons.join(", ") || "—")}</td></tr>`;
+    });
+    h += `</tbody></table></div>`;
+  }
+
+  h += `<div class="sec-title">Workload</div>`;
+  const people = state.people;
+  if (!people.length) {
+    h += emptyState("No team members yet", "Add your team so workload and slack can be tracked.", `<button class="btn btn-p" onclick="window.__go('team')">Go to Team</button>`);
+  } else {
+    h += `<div class="tbl-wrap"><table class="tbl"><thead><tr>
+      <th>Person</th><th>Active items</th><th>Tightest slack</th><th>Next deadline</th></tr></thead><tbody>`;
+    people.forEach(p => {
+      const mine = ST.filter(s => (s.engineerId === p.id || s.designerId === p.id) && isActionable(s));
+      let worst = null, next = null;
+      mine.forEach(s => {
+        const sl = slackDays(s, deadlineFor(s), p);
+        if (sl != null && (worst == null || sl < worst)) worst = sl;
+        const d = parseDate(deadlineFor(s));
+        if (d && (next == null || d < next)) next = d;
+      });
+      h += `<tr><td>${avatar(p.name)} <span style="margin-left:6px">${esc(p.name)}</span>
+          <div class="tiny muted" style="margin-left:29px">${esc((p.roles || []).join(", "))}</div></td>
+        <td>${mine.length}</td>
+        <td>${worst == null ? '<span class="tiny muted">—</span>' : pill(round(worst, 1) + " d", worst < 0 ? "bad" : worst < 3 ? "warn" : "ok")}</td>
+        <td class="small">${next ? fmtShort(next) : "—"}</td></tr>`;
+    });
+    h += `</tbody></table></div>`;
+  }
+  return h;
+}
+function kpi(lab, val, kind, sub) {
+  return `<div class="kpi ${kind || ""}"><div class="lab">${esc(lab)}</div><div class="val">${val}</div>
+    ${sub ? `<div class="sub">${esc(sub)}</div>` : ""}</div>`;
+}
+function emptyState(title, msg, action) {
+  return `<div class="card"><div class="empty"><h3>${esc(title)}</h3><p>${esc(msg)}</p>${action || ""}</div></div>`;
+}
+
+/* ---------------- PROJECTS BOARD ---------------- */
+function renderProjects() {
+  const today = new Date();
+  const list = state.projects.map(p => ({ p, r: projectRisk(p, byPhase(structuresOf(p.id)), today), prog: projProgress(p) }));
+  list.sort((a, b) => b.r.score - a.r.score);
+
+  let h = `<div class="between" style="margin-bottom:16px">
+    <div><h2 style="font-size:17px">Projects</h2>
+    <div class="small muted">Ranked by risk — most urgent first</div></div>
+    <button class="btn btn-p" onclick="window.__newProject()">+ New project</button></div>`;
+
+  if (!list.length) return h + emptyState("No projects yet", "Create your first project to get started.",
+    `<button class="btn btn-p" onclick="window.__newProject()">+ New project</button>`);
+
+  h += `<div class="pboard">`;
+  list.forEach(({ p, r, prog }) => {
+    const ph = r.phase ? p.phases[r.phase] : null;
+    const moved = view.prevRisk[p.id] !== undefined && view.prevRisk[p.id] !== r.score;
+    const isNew = view.prevRisk[p.id] === undefined;
+    view.prevRisk[p.id] = r.score;
+    const st = structuresOf(p.id);
+    const staleN = st.filter(s => isStale(s, today)).length;
+    h += `<div class="pcard ${isNew || moved ? "enter" : ""}" onclick="window.__openProject('${p.id}')">
+      <div class="between" style="align-items:flex-start">
+        <div><div class="tiny muted" style="text-transform:uppercase;letter-spacing:.04em">${esc(p.client || "—")}</div>
+          <div style="font-weight:600;font-size:14.5px;margin-top:2px">${esc(p.name)}</div></div>
+        ${r.phase ? pill(r.phase + "%", "accent") : ""}
+      </div>
+      <div style="margin:11px 0 4px">${bar(prog)}</div>
+      <div class="between tiny muted"><span>${round(prog)}% overall</span>
+        <span>${ph && ph.deadline ? fmtShort(ph.deadline) : "no deadline"}</span></div>
+      <div style="margin-top:11px;padding-top:10px;border-top:1px solid var(--line-2)" class="between">
+        <div class="row" style="gap:6px">
+          <span class="tiny muted">${st.length} structure${st.length === 1 ? "" : "s"}</span>
+          ${staleN ? pill(staleN + " stale", "warn") : ""}
+          ${ph && ph.status === "Submitted" ? pill("Submitted", "ok") : ""}
+        </div>
+        ${r.score >= 45 ? pill("At risk", "bad") : r.score >= 25 ? pill("Watch", "warn") : pill("On track", "ok")}
+      </div></div>`;
+  });
+  return h + `</div>`;
+}
+
+/* ---------------- PROJECT DETAIL (grid) ---------------- */
+function renderDetail() {
+  const p = state.projects.find(x => x.id === view.projectId);
+  if (!p) { view.tab = "projects"; return renderProjects(); }
+  const today = new Date();
+  const st = structuresOf(p.id);
+  const bp = byPhase(st);
+  const inc = includedPhases(p);
+  const prog = projProgress(p);
+  const names = [...new Set(st.map(s => s.name))].sort();
+
+  let h = `<button class="backlink" onclick="window.__go('projects')">&larr; All projects</button>
+  <div class="between" style="margin:8px 0 16px;align-items:flex-start">
+    <div><h2 style="font-size:18px">${esc(p.name)}</h2>
+      <div class="small muted">${esc(p.client || "")} · Manager ${esc(personName(p.managerId) || "—")} · Lead ${esc(personName(p.leadId) || "—")}</div></div>
+    <div class="row">
+      <button class="btn btn-s" onclick="window.__editProject('${p.id}')">Edit project</button>
+      <button class="btn btn-p" onclick="window.__addStructure('${p.id}')">+ Structure</button>
+    </div></div>`;
+
+  h += `<div class="card card-p" style="margin-bottom:16px">
+    <div class="between" style="margin-bottom:8px"><strong style="font-size:13.5px">Overall progress</strong>
+      <span style="font-weight:600">${round(prog)}%</span></div>${bar(prog)}
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:14px">`;
+  inc.forEach(ph => {
+    const phase = p.phases[ph];
+    const pp = phaseProgress(bp[ph] || [], p.calcWeight || 0.6);
+    const exp = expectedProgress(phase, today);
+    const pi = paceIndex(pp, exp);
+    const slip = slipDays(phase);
+    h += `<div class="box" style="margin:0;cursor:pointer" onclick="window.__editPhase('${p.id}','${ph}')">
+      <div class="between"><strong class="small">${ph}%</strong>${pill(phase.status, phase.status === "Closed" ? "ok" : phase.status === "Submitted" ? "accent" : phase.status === "Client review received" ? "warn" : "grey")}</div>
+      <div style="margin:7px 0 5px">${bar(pp, paceKind(pi))}</div>
+      <div class="tiny muted">${round(pp)}% · ${(bp[ph] || []).length} str · due ${fmtShort(phase.deadline)}</div>
+      ${slip != null ? `<div class="tiny ${slip > 0 ? "" : ""}" style="color:${slip > 0 ? "var(--bad)" : "var(--ok)"}">${slip > 0 ? slip + " wd late" : Math.abs(slip) + " wd early"}</div>` : ""}
+    </div>`;
+  });
+  h += `</div></div>`;
+
+  if (!st.length) {
+    h += emptyState("No structures yet", "Add the structures in this substation to start tracking calc and drawing progress.",
+      `<button class="btn btn-p" onclick="window.__addStructure('${p.id}')">+ Add structure</button>`);
+    return h;
+  }
+
+  h += `<div class="sec-title">Structures × phases</div>
+  <div class="tbl-wrap scroll-x"><table class="gridtbl"><thead><tr>
+    <th class="namecol">Structure</th>${inc.map(ph => `<th>${ph}%</th>`).join("")}</tr></thead><tbody>`;
+  names.forEach(nm => {
+    h += `<tr><td class="namecol"><strong style="font-size:13px">${esc(nm)}</strong></td>`;
+    inc.forEach(ph => {
+      const s = (bp[ph] || []).find(x => x.name === nm);
+      if (!s) { h += `<td class="cell na"><span class="tiny muted">—</span></td>`; return; }
+      const stale = isStale(s, today);
+      const sl = slackOf(s);
+      h += `<td class="cell"><div class="cellinner">
+        <div class="cellrow"><label>Calc</label>${qaBar(s.calcQ, s.id, 'calcQ', true)}</div>
+        <div class="cellrow"><label>Dwg</label>${qaBar(s.drawQ, s.id, 'drawQ', true)}</div>
+        <div class="cellrow" style="justify-content:space-between;margin-top:2px">
+          <span class="tiny muted">${avatar(personName(s.engineerId))}${avatar(personName(s.designerId))}</span>
+          <span class="row" style="gap:3px">
+            ${s.blockedReason ? pill("Blocked", "warn") : ""}
+            ${stale ? pill("Stale", "warn") : ""}
+            ${sl != null && sl < 0 ? pill(round(sl, 1) + "d", "bad") : ""}
+            <button class="iconbtn" onclick="event.stopPropagation();window.__editStructure('${s.id}')" title="Edit">&#9998;</button>
+          </span></div></div></td>`;
+    });
+    h += `</tr>`;
+  });
+  h += `</tbody></table></div>`;
+
+  h += `<div class="sec-title">Project notes</div>`;
+  h += commentsBlock({ projectId: p.id, structureId: null });
+  return h;
+}
+
+function commentsBlock(scope) {
+  const list = state.comments.filter(c =>
+    scope.structureId ? c.structureId === scope.structureId : (c.projectId === scope.projectId && !c.structureId)
+  ).sort((a, b) => String(b.atISO || "").localeCompare(String(a.atISO || "")));
+  let h = `<div class="card card-p">
+    <div class="f2" style="margin-bottom:8px">
+      <div class="f" style="margin:0"><input id="cmt-text" placeholder="Add a note…" /></div>
+      <div class="f" style="margin:0"><input id="cmt-link" placeholder="Optional link (SharePoint, etc.)" /></div>
+    </div>
+    <div class="between"><span class="tiny muted">Posting as <strong>${esc(state.me || "unknown")}</strong></span>
+      <button class="btn btn-p btn-sm" onclick="window.__addComment('${scope.projectId || ""}','${scope.structureId || ""}')">Post note</button></div>`;
+  if (list.length) {
+    h += `<div class="hr"></div>`;
+    list.forEach(c => {
+      h += `<div class="cmt"><div class="meta"><span class="who">${esc(c.who)}</span> · ${fmtDate(c.atISO)}</div>
+        <div>${esc(c.text)}</div>
+        ${c.link ? `<a class="link-ico" href="${esc(c.link)}" target="_blank" rel="noopener">Open link &#8599;</a>` : ""}</div>`;
+    });
+  } else {
+    h += `<div class="tiny muted" style="margin-top:10px">No notes yet.</div>`;
+  }
+  return h + `</div>`;
+}
+
+/* ---------------- MY WORK ---------------- */
+function renderMyWork() {
+  if (!state.me) {
+    return emptyState("Tell us who you are", "Pick your name so we can show your assignments.",
+      `<button class="btn btn-p" onclick="window.__whoami()">Set my name</button>`);
+  }
+  const today = new Date();
+  const mine = myStructures().filter(s => isActionable(s))
+    .map(s => ({ s, sl: slackOf(s), dl: deadlineFor(s) }))
+    .sort((a, b) => (a.sl == null ? 1e9 : a.sl) - (b.sl == null ? 1e9 : b.sl));
+
+  let h = `<div class="between" style="margin-bottom:16px">
+    <div><h2 style="font-size:17px">My work</h2>
+      <div class="small muted">${esc(state.me)} · sorted by slack — tightest first</div></div>
+    <button class="btn btn-s" onclick="window.__whoami()">Change name</button></div>`;
+
+  if (!mine.length) {
+    return h + emptyState("Nothing assigned", "Structures assigned to you will appear here, ordered by urgency.");
+  }
+  const neg = mine.filter(x => x.sl != null && x.sl < 0);
+  if (neg.length) {
+    h += `<div class="badbox"><strong>${neg.length} item${neg.length === 1 ? "" : "s"} can't finish on time</strong> at current estimates. Talk to your PM about reassigning or moving a date.</div>`;
+  }
+  h += `<div class="tbl-wrap"><table class="tbl"><thead><tr>
+    <th>Structure</th><th>Project / phase</th><th style="width:110px">Calc</th><th style="width:110px">Drawing</th>
+    <th>Deadline</th><th>Slack</th><th></th></tr></thead><tbody>`;
+  mine.forEach(({ s, sl, dl }) => {
+    const p = state.projects.find(x => x.id === s.projectId);
+    const stale = isStale(s, today);
+    h += `<tr><td><strong>${esc(s.name)}</strong>
+        <div class="row tiny" style="gap:4px;margin-top:3px">
+          ${stale ? pill("Stale", "warn") : ""}${s.blockedReason ? pill(s.blockedReason, "warn") : ""}</div></td>
+      <td class="small"><a href="#" onclick="event.preventDefault();window.__openProject('${s.projectId}')">${esc(p ? p.name : "?")}</a>
+        <div class="tiny muted">${esc(s.phase)}% phase</div></td>
+      <td>${qaBar(s.calcQ, s.id, 'calcQ')}</td>
+      <td>${qaBar(s.drawQ, s.id, 'drawQ')}</td>
+      <td class="small">${fmtShort(dl)}</td>
+      <td>${sl == null ? '<span class="tiny muted">—</span>' : pill(round(sl, 1) + " d", sl < 0 ? "bad" : sl < 3 ? "warn" : "ok")}</td>
+      <td><button class="iconbtn" onclick="window.__editStructure('${s.id}')" title="Edit">&#9998;</button></td></tr>`;
+  });
+  return h + `</tbody></table></div>`;
+}
+
+/* ---------------- TEAM & TYPES ---------------- */
+function renderTeam() {
+  let h = `<div class="between" style="margin-bottom:16px">
+    <div><h2 style="font-size:17px">Team</h2><div class="small muted">People, roles, and availability</div></div>
+    <button class="btn btn-p" onclick="window.__editPerson()">+ Add person</button></div>`;
+  if (!state.people.length) {
+    h += emptyState("No team members", "Add people so work can be assigned and workload tracked.",
+      `<button class="btn btn-p" onclick="window.__editPerson()">+ Add person</button>`);
+  } else {
+    h += `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Name</th><th>Roles</th><th>Availability</th><th></th></tr></thead><tbody>`;
+    state.people.forEach(p => {
+      const av = (p.availability || []).map(b => `${fmtShort(b.from)}–${fmtShort(b.to)} @ ${b.percent}%`).join(", ");
+      h += `<tr><td>${avatar(p.name)} <span style="margin-left:6px;font-weight:500">${esc(p.name)}</span></td>
+        <td class="small">${esc((p.roles || []).join(", ") || "—")}</td>
+        <td class="small muted">${esc(av || "Full availability")}</td>
+        <td style="text-align:right"><button class="iconbtn" onclick="window.__editPerson('${p.id}')">&#9998;</button>
+          <button class="iconbtn" onclick="window.__delPerson('${p.id}')">&#10005;</button></td></tr>`;
+    });
+    h += `</tbody></table></div>`;
+  }
+
+  h += `<div class="sec-title">Structure types &amp; estimates</div>
+    <div class="small muted" style="margin-bottom:10px">Default effort per type. New structures inherit these, and you can override per structure.</div>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn btn-p btn-sm" onclick="window.__editType()">+ Add type</button>
+      ${state.structureTypes.length ? "" : `<button class="btn btn-s btn-sm" onclick="window.__seedTypes()">Load starter list</button>`}
+    </div>`;
+  if (!state.structureTypes.length) {
+    h += emptyState("No structure types", "Load the starter list of common substation structures, then edit to match your practice.",
+      `<button class="btn btn-p" onclick="window.__seedTypes()">Load starter list</button>`);
+  } else {
+    h += `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Type</th><th>Calc days</th><th>Drawing days</th><th>Actual avg</th><th></th></tr></thead><tbody>`;
+    state.structureTypes.forEach(t => {
+      const used = state.structures.filter(s => s.typeId === t.id);
+      h += `<tr><td style="font-weight:500">${esc(t.name)}</td>
+        <td>${t.calcEstDays}</td><td>${t.drawEstDays}</td>
+        <td class="small muted">${used.length ? used.length + " in use" : "not used yet"}</td>
+        <td style="text-align:right"><button class="iconbtn" onclick="window.__editType('${t.id}')">&#9998;</button>
+          <button class="iconbtn" onclick="window.__delType('${t.id}')">&#10005;</button></td></tr>`;
+    });
+    h += `</tbody></table></div>`;
+  }
+  return h;
+}
+
+/* ---------------- modals ---------------- */
+window.__newProject = () => projectModal(null);
+window.__editProject = (id) => projectModal(id);
+function projectModal(id) {
+  const p = id ? state.projects.find(x => x.id === id) : null;
+  const people = state.people;
+  openModal({
+    wide: true,
+    body: `<h3>${p ? "Edit project" : "New project"}</h3><p class="sub">Phases can be excluded if the client skips them — progress reweights automatically.</p>
+    <div class="f2"><div class="f"><label>Project name</label><input id="p-name" value="${esc(p ? p.name : "")}" placeholder="Golf Mill substation" /></div>
+      <div class="f"><label>Client</label><input id="p-client" value="${esc(p ? p.client : "")}" placeholder="COMED" /></div></div>
+    <div class="f3"><div class="f"><label>Manager</label><select id="p-mgr">${opts(people, p ? p.managerId : "", "id", "name", "—")}</select></div>
+      <div class="f"><label>Lead engineer</label><select id="p-lead">${opts(people, p ? p.leadId : "", "id", "name", "—")}</select></div>
+      <div class="f"><label>Calc weight</label><select id="p-cw">
+        ${[["0.6", "60% calc / 40% drawing"], ["0.5", "50 / 50"], ["0.7", "70 / 30"]].map(([v, l]) =>
+      `<option value="${v}" ${p && String(p.calcWeight) === v ? "selected" : ""}>${l}</option>`).join("")}
+      </select></div></div>
+    <div class="sec-title" style="margin:14px 0 8px">Phases</div>
+    ${PHASES.map(ph => {
+      const d = p && p.phases && p.phases[ph] ? p.phases[ph] : { included: true, status: "In progress", deadline: "", startDate: "", submittedDate: "" };
+      return `<div class="box"><div class="row" style="gap:14px;flex-wrap:wrap">
+        <label class="row" style="gap:6px;font-size:13px;min-width:76px">
+          <input type="checkbox" id="ph-${ph}-inc" ${d.included !== false ? "checked" : ""} style="width:auto" /> <strong>${ph}%</strong></label>
+        <div class="f" style="margin:0;flex:1;min-width:120px"><label>Start</label><input type="date" id="ph-${ph}-start" value="${esc(d.startDate || "")}" /></div>
+        <div class="f" style="margin:0;flex:1;min-width:120px"><label>Deadline</label><input type="date" id="ph-${ph}-dl" value="${esc(d.deadline || "")}" /></div>
+        <div class="f" style="margin:0;flex:1;min-width:130px"><label>Status</label><select id="ph-${ph}-st">${opts(PHASE_STATUS, d.status)}</select></div>
+        <div class="f" style="margin:0;flex:1;min-width:120px"><label>Submitted</label><input type="date" id="ph-${ph}-sub" value="${esc(d.submittedDate || "")}" /></div>
+      </div></div>`;
+    }).join("")}
+    <div id="impact"></div>
+    <div class="acts">${p ? `<button class="btn btn-d" id="p-del">Delete</button>` : ""}
+      <button class="btn btn-s" onclick="window.__closeModal()">Cancel</button>
+      <button class="btn btn-p" id="p-save">Save</button></div>`
+  }, () => {
+    PHASES.forEach(ph => {
+      const dl = el(`ph-${ph}-dl`);
+      if (dl && p) dl.onchange = () => showImpact(p, ph, dl.value);
+    });
+    el("p-save").onclick = async () => {
+      const name = val("p-name");
+      if (!name) { alert("Enter a project name."); return; }
+      const phases = {};
+      PHASES.forEach(ph => {
+        const prev = p && p.phases && p.phases[ph] ? p.phases[ph] : {};
+        const dl = val(`ph-${ph}-dl`);
+        phases[ph] = {
+          included: el(`ph-${ph}-inc`).checked,
+          startDate: val(`ph-${ph}-start`),
+          deadline: dl,
+          originalDeadline: prev.originalDeadline || dl,
+          status: val(`ph-${ph}-st`),
+          submittedDate: val(`ph-${ph}-sub`)
+        };
+      });
+      const data = {
+        name, client: val("p-client"), managerId: val("p-mgr"), leadId: val("p-lead"),
+        calcWeight: parseFloat(val("p-cw")) || 0.6, phases
+      };
+      closeModal();
+      if (p) await updateProject(p.id, data, name); else { const nid = await addProject(data); view.projectId = nid; view.tab = "detail"; }
+      render();
+    };
+    if (p) el("p-del").onclick = () => confirmDialog(`Delete "${p.name}" and all its structures?`, async () => {
+      closeModal(); view.tab = "projects"; await deleteProject(p.id); render();
+    });
+  });
+}
+
+function showImpact(project, phase, newDeadline) {
+  const box = el("impact");
+  if (!box || !newDeadline) return;
+  const affected = state.structures.filter(s => s.projectId === project.id && s.phase === phase && isActionable(s));
+  const people = {};
+  affected.forEach(s => {
+    const per = personBy(s.engineerId);
+    if (!per) return;
+    const sl = slackDays(s, newDeadline, per);
+    if (sl != null && sl < 0) {
+      people[per.name] = people[per.name] || [];
+      people[per.name].push(`${s.name} (${round(sl, 1)}d)`);
+    }
+  });
+  const names = Object.keys(people);
+  box.innerHTML = names.length
+    ? `<div class="warnbox"><strong>Heads up:</strong> that date puts ${names.length} person${names.length === 1 ? "" : "s"} into negative slack — ${names.map(n => `${esc(n)}: ${esc(people[n].join(", "))}`).join(" · ")}</div>`
+    : `<div class="okbox">No one goes negative with that date.</div>`;
+}
+
+window.__editPhase = (pid, ph) => projectModal(pid);
+
+window.__addStructure = (pid) => structureModal(null, pid);
+window.__editStructure = (sid) => structureModal(sid, null);
+function structureModal(sid, pid) {
+  const s = sid ? state.structures.find(x => x.id === sid) : null;
+  const projectId = s ? s.projectId : pid;
+  const proj = state.projects.find(x => x.id === projectId);
+  const inc = proj ? includedPhases(proj) : PHASES;
+  const engineers = state.people.filter(p => (p.roles || []).includes("Engineer"));
+  const designers = state.people.filter(p => (p.roles || []).includes("Designer"));
+  openModal({
+    body: `<h3>${s ? "Edit structure" : "Add structure"}</h3>
+    <p class="sub">${esc(proj ? proj.name : "")}</p>
+    <div class="f2"><div class="f"><label>Structure name</label><input id="s-name" value="${esc(s ? s.name : "")}" placeholder="STR-04 dead-end" /></div>
+      <div class="f"><label>Phase</label><select id="s-phase">${opts(inc.map(p => ({ v: p, l: p + "%" })), s ? s.phase : inc[0], "v", "l")}</select></div></div>
+    <div class="f"><label>Structure type</label><select id="s-type">${opts(state.structureTypes, s ? s.typeId : "", "id", "name", "— none —")}</select></div>
+    <div class="f2"><div class="f"><label>Calc estimate (days)</label><input type="number" step="0.5" id="s-ce" value="${s ? s.calcEstDays || "" : ""}" /></div>
+      <div class="f"><label>Drawing estimate (days)</label><input type="number" step="0.5" id="s-de" value="${s ? s.drawEstDays || "" : ""}" /></div></div>
+    <div class="f2"><div class="f"><label>Engineer</label><select id="s-eng">${opts(engineers, s ? s.engineerId : "", "id", "name", "— unassigned —")}</select></div>
+      <div class="f"><label>Designer</label><select id="s-des">${opts(designers, s ? s.designerId : "", "id", "name", "— unassigned —")}</select></div></div>
+    <div class="f"><label>Blocked / waiting on</label><select id="s-block">${opts(BLOCK_REASONS, s ? s.blockedReason : "", null, null, "— not blocked —")}</select></div>
+    ${s ? `<div class="hr"></div><div class="sec-title" style="margin:0 0 8px">Notes on this structure</div>${commentsBlock({ projectId, structureId: s.id })}` : ""}
+    <div class="acts">${s ? `<button class="btn btn-d" id="s-del">Delete</button>` : ""}
+      <button class="btn btn-s" onclick="window.__closeModal()">Cancel</button>
+      <button class="btn btn-p" id="s-save">Save</button></div>`
+  }, () => {
+    const tsel = el("s-type");
+    tsel.onchange = () => {
+      const t = state.structureTypes.find(x => x.id === tsel.value);
+      if (t) { setVal("s-ce", t.calcEstDays); setVal("s-de", t.drawEstDays); }
+    };
+    el("s-save").onclick = async () => {
+      const name = val("s-name");
+      if (!name) { alert("Enter a structure name."); return; }
+      const data = {
+        projectId, name, phase: val("s-phase"), typeId: val("s-type"),
+        calcEstDays: parseFloat(val("s-ce")) || 0, drawEstDays: parseFloat(val("s-de")) || 0,
+        engineerId: val("s-eng"), designerId: val("s-des"), blockedReason: val("s-block")
+      };
+      closeModal();
+      if (s) await updateStructure(s.id, data, name); else await addStructure(data);
+      render();
+    };
+    if (s) el("s-del").onclick = () => confirmDialog(`Delete structure "${s.name}"?`, async () => {
+      closeModal(); await deleteStructure(s.id); render();
+    });
+  });
+}
+
+window.__setQ = async (sid, field, clicked) => {
+  const s = state.structures.find(x => x.id === sid);
+  if (!s) return;
+  const cur = Number(s[field]) || 0;
+  const track = field === "calcQ" ? "Calc" : "Drawing";
+  const target = clicked === cur ? cur - 1 : clicked;
+
+  if (field === "drawQ" && target >= 4 && (Number(s.calcQ) || 0) < 4) {
+    openModal({
+      body: `<h3>Calc isn't signed off yet</h3>
+      <p class="sub">Drawings for "${esc(s.name)}" can't really be final until the calc clears Q4 — sizing may still change.</p>
+      <div class="acts"><button class="btn btn-s" onclick="window.__closeModal()">Cancel</button>
+        <button class="btn btn-p" id="q-any">Set it anyway</button></div>`
+    }, () => {
+      el("q-any").onclick = async () => {
+        closeModal();
+        await updateStructure(sid, { drawQ: target }, `${s.name} drawing → Q${target}`);
+        render();
+      };
+    });
+    return;
+  }
+
+  if (target < cur) {
+    openModal({
+      body: `<h3>Send back to Q${target < 0 ? 0 : target}?</h3>
+      <p class="sub">${esc(s.name)} — ${track.toLowerCase()} track. Recording why keeps your rework history honest.</p>
+      <div class="f"><label>Reason for rejection</label><input id="q-reason" placeholder="e.g. anchor bolt check missing" /></div>
+      <div class="acts"><button class="btn btn-s" onclick="window.__closeModal()">Cancel</button>
+        <button class="btn btn-p" id="q-back">Send back</button></div>`
+    }, () => {
+      el("q-back").onclick = async () => {
+        const reason = val("q-reason");
+        closeModal();
+        const rw = Number(s.reworkCount || 0) + 1;
+        await updateStructure(sid, { [field]: Math.max(0, target), reworkCount: rw },
+          `${s.name} ${track} sent back to Q${Math.max(0, target)}`);
+        if (reason) {
+          await addComment({
+            text: `${track} rejected at Q${cur} → back to Q${Math.max(0, target)}: ${reason}`,
+            projectId: s.projectId, structureId: sid, link: ""
+          });
+        }
+        render();
+      };
+    });
+    return;
+  }
+
+  await updateStructure(sid, { [field]: target }, `${s.name} ${track} → Q${target}`);
+  render();
+};
+
+window.__editPerson = (id) => {
+  const p = id ? state.people.find(x => x.id === id) : null;
+  const roles = ["Manager", "Lead engineer", "Engineer", "Designer"];
+  const av = (p && p.availability) || [];
+  openModal({
+    body: `<h3>${p ? "Edit person" : "Add person"}</h3>
+    <div class="f"><label>Name</label><input id="pe-name" value="${esc(p ? p.name : "")}" /></div>
+    <div class="f"><label>Roles</label><div class="row" style="flex-wrap:wrap;gap:12px">
+      ${roles.map(r => `<label class="row" style="gap:5px;font-size:13px"><input type="checkbox" id="pe-r-${r.replace(/\s/g, "")}" ${p && (p.roles || []).includes(r) ? "checked" : ""} style="width:auto" /> ${r}</label>`).join("")}
+    </div></div>
+    <div class="sec-title" style="margin:14px 0 8px">Availability blocks</div>
+    <div class="small muted" style="margin-bottom:8px">Leave empty for full availability. Use 0% for leave, 50% for part-time on another team.</div>
+    <div id="av-list">${av.map((b, i) => avRow(b, i)).join("")}</div>
+    <button class="btn btn-s btn-sm" id="av-add" type="button">+ Add block</button>
+    <div class="acts"><button class="btn btn-s" onclick="window.__closeModal()">Cancel</button>
+      <button class="btn btn-p" id="pe-save">Save</button></div>`
+  }, () => {
+    let n = av.length;
+    el("av-add").onclick = () => { el("av-list").insertAdjacentHTML("beforeend", avRow({ from: "", to: "", percent: 50 }, n++)); };
+    el("pe-save").onclick = async () => {
+      const name = val("pe-name");
+      if (!name) { alert("Enter a name."); return; }
+      const rl = roles.filter(r => { const c = el(`pe-r-${r.replace(/\s/g, "")}`); return c && c.checked; });
+      const blocks = [...document.querySelectorAll("#av-list .avrow")].map(row => ({
+        from: row.querySelector(".av-f").value,
+        to: row.querySelector(".av-t").value,
+        percent: parseInt(row.querySelector(".av-p").value) || 0
+      })).filter(b => b.from && b.to);
+      closeModal();
+      if (p) await updatePerson(p.id, { name, roles: rl, availability: blocks });
+      else await addPerson({ name, roles: rl, availability: blocks });
+      render();
+    };
+  });
+};
+function avRow(b, i) {
+  return `<div class="avrow row" style="gap:8px;margin-bottom:7px">
+    <input type="date" class="av-f" value="${esc(b.from || "")}" style="flex:1;padding:7px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:13px" />
+    <input type="date" class="av-t" value="${esc(b.to || "")}" style="flex:1;padding:7px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:13px" />
+    <input type="number" class="av-p" value="${b.percent != null ? b.percent : 50}" min="0" max="100" style="width:78px;padding:7px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:13px" />
+    <span class="tiny muted">%</span>
+    <button class="iconbtn" type="button" onclick="this.parentNode.remove()">&#10005;</button></div>`;
+}
+window.__delPerson = (id) => {
+  const p = state.people.find(x => x.id === id);
+  confirmDialog(`Remove ${p ? p.name : "this person"} from the team?`, async () => { await deletePerson(id); render(); });
+};
+
+window.__editType = (id) => {
+  const t = id ? state.structureTypes.find(x => x.id === id) : null;
+  openModal({
+    body: `<h3>${t ? "Edit type" : "Add structure type"}</h3>
+    <div class="f"><label>Type name</label><input id="t-name" value="${esc(t ? t.name : "")}" placeholder="A-frame structure" /></div>
+    <div class="f2"><div class="f"><label>Calc estimate (days)</label><input type="number" step="0.5" id="t-c" value="${t ? t.calcEstDays : 3}" /></div>
+      <div class="f"><label>Drawing estimate (days)</label><input type="number" step="0.5" id="t-d" value="${t ? t.drawEstDays : 2}" /></div></div>
+    <div class="acts"><button class="btn btn-s" onclick="window.__closeModal()">Cancel</button>
+      <button class="btn btn-p" id="t-save">Save</button></div>`
+  }, () => {
+    el("t-save").onclick = async () => {
+      const name = val("t-name");
+      if (!name) return;
+      const data = { name, calcEstDays: parseFloat(val("t-c")) || 0, drawEstDays: parseFloat(val("t-d")) || 0 };
+      closeModal();
+      if (t) await updateType(t.id, data); else await addType(data);
+      render();
+    };
+  });
+};
+window.__delType = (id) => confirmDialog("Delete this structure type?", async () => { await deleteType(id); render(); });
+window.__seedTypes = async () => { const n = await seedTypes(); banner(n ? "" : "Types already loaded."); render(); };
+
+window.__addComment = async (projectId, structureId) => {
+  const text = val("cmt-text");
+  if (!text) return;
+  const link = val("cmt-link");
+  if (!state.me) { askWhoAmI(); return; }
+  await addComment({ text, link, projectId: projectId || null, structureId: structureId || null });
+  setVal("cmt-text", ""); setVal("cmt-link", "");
+  render();
+};
+
+window.__suggest = (sid) => {
+  const s = state.structures.find(x => x.id === sid);
+  if (!s) return;
+  const dl = deadlineFor(s);
+  const projectsById = byId(state.projects);
+  const list = suggestReassignment(s, dl, state.people, state.structures, projectsById);
+  const need = remainingDays(s);
+  openModal({
+    body: `<h3>Who can take "${esc(s.name)}"?</h3>
+    <p class="sub">Needs about ${round(need, 1)} days of work before ${fmtDate(dl)}.</p>
+    ${list.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Person</th><th>Current load</th><th>Slack if they take it</th><th></th></tr></thead><tbody>
+      ${list.map(c => `<tr><td>${avatar(c.person.name)} <span style="margin-left:6px">${esc(c.person.name)}</span></td>
+        <td class="small">${c.currentLoad} item${c.currentLoad === 1 ? "" : "s"}</td>
+        <td>${pill("+" + round(c.projectedSlack, 1) + " d", "ok")}</td>
+        <td><button class="btn btn-s btn-sm" onclick="window.__reassign('${s.id}','${c.person.id}')">Assign</button></td></tr>`).join("")}
+    </tbody></table></div>`
+        : `<div class="warnbox">No one has enough slack to absorb this before the deadline. The realistic options are moving the deadline or reducing scope.</div>`}
+    <div class="acts"><button class="btn btn-s" onclick="window.__closeModal()">Close</button></div>`
+  });
+};
+window.__reassign = async (sid, pid) => {
+  closeModal();
+  await updateStructure(sid, { engineerId: pid }, "reassigned");
+  render();
+};
+
+window.__openProject = (id) => { view.projectId = id; view.tab = "detail"; render(); window.scrollTo(0, 0); };
+window.__go = (tab) => { view.tab = tab; render(); window.scrollTo(0, 0); };
+window.__whoami = askWhoAmI;
+
+/* ---------------- render ---------------- */
+function render() {
+  const tabs = [["insights", "Insights"], ["projects", "Projects"], ["mywork", "My work"], ["team", "Team"]];
+  el("tabs").innerHTML = tabs.map(([k, l]) =>
+    `<button class="${view.tab === k || (k === "projects" && view.tab === "detail") ? "on" : ""}" onclick="window.__go('${k}')">${l}</button>`).join("");
+  el("who-name").textContent = state.me || "Set your name";
+
+  let html = "";
+  if (view.tab === "insights") html = renderInsights();
+  else if (view.tab === "projects") html = renderProjects();
+  else if (view.tab === "detail") html = renderDetail();
+  else if (view.tab === "mywork") html = renderMyWork();
+  else if (view.tab === "team") html = renderTeam();
+  el("main").innerHTML = html;
+}
+
+/* ---------------- boot ---------------- */
+loadMe();
+onChange(() => {
+  const live = el("live");
+  if (allReady()) { live.classList.add("on"); el("live-text").textContent = "Live"; }
+  render();
+});
+start(err => banner("Connection problem: " + err.message));
+el("who").onclick = askWhoAmI;
+render();
+
+
+</script>
+</body>
+</html>
