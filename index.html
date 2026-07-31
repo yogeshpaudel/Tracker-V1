@@ -562,7 +562,7 @@ function projectRisk(project, structuresByPhase, today = new Date()) {
   }
 
   const staleCount = list.filter(s => isStale(s, today)).length;
-  if (staleCount) { score += Math.min(15, staleCount * 5); reasons.push(staleCount + " stale"); }
+  if (staleCount) { score += Math.min(15, staleCount * 5); reasons.push(staleCount + " not updated recently"); }
 
   const blocked = list.filter(s => s.blockedReason).length;
   if (blocked) { score += Math.min(10, blocked * 3); reasons.push(blocked + " blocked"); }
@@ -708,14 +708,20 @@ async function restoreProject(id) {
 }
 
 async function addStructure(data) {
+  const stamp = data.designerId ? { designerAssignedAt: todayISO() } : {};
   const ref = await addDoc(collection(db, "structuresV2"), {
-    calcSteps: {}, drawQ: 0, ...data, lastTouched: todayISO(), created: serverTimestamp()
+    calcSteps: {}, drawQ: 0, ...data, ...stamp, lastTouched: todayISO(), created: serverTimestamp()
   });
   await log("Added structure", data.name);
   return ref.id;
 }
 async function updateStructure(id, updates, note) {
-  await updateDoc(doc(db, "structuresV2", id), { ...updates, lastTouched: todayISO() });
+  const current = state.structures.find(x => x.id === id);
+  const extra = {};
+  if (updates.designerId !== undefined && current && updates.designerId !== current.designerId && updates.designerId) {
+    extra.designerAssignedAt = todayISO();
+  }
+  await updateDoc(doc(db, "structuresV2", id), { ...updates, ...extra, lastTouched: todayISO() });
   if (note) await log("Updated structure", note);
 }
 async function deleteStructure(id) {
@@ -960,6 +966,11 @@ function deadlineFor(s) {
 }
 function personBy(id) { return state.people.find(x => x.id === id) || null; }
 function paceKind(pi) { if (pi == null) return ""; if (pi >= 0.95) return "ok"; if (pi >= 0.8) return "warn"; return "bad"; }
+function spareKind(days) { return days < 0 ? "bad" : days < 3 ? "warn" : "ok"; }
+function spareText(days) {
+  const d = round(Math.abs(days), 1);
+  return days < 0 ? `${d}d short` : `${d}d spare`;
+}
 function kaKind(k) { return k === "Submitted" ? "ok" : k === "On hold" ? "bad" : k === "Waiting for information" ? "warn" : "accent"; }
 function clientKind(c) { return c === "Client comments received" ? "ok" : c === "Submitted for review" ? "accent" : "grey"; }
 
@@ -1012,13 +1023,22 @@ function renderInsights() {
   });
   negSlack.sort((a, b) => a.sl - b.sl);
 
-  const calcCounts = [0, 0, 0, 0, 0, 0, 0]; // bucket by number of the 6 steps done
-  const drawCounts = [0, 0, 0, 0, 0];
-  ST.filter(s => isActionable(s)).forEach(s => {
-    const doneSteps = CALC_STEPS.filter(st => (s.calcSteps || {})[st.key]).length;
-    calcCounts[doneSteps]++;
-    drawCounts[Math.min(4, Number(s.drawQ) || 0)]++;
+  // Drawing pipeline: counts stop only once the WHOLE project wraps up, not when one structure finishes -
+  // a finished drawing still shows, just moves into the "Completed" bucket instead of vanishing.
+  const drawBuckets = { notstarted: [], q1: [], q2: [], q3: [], q4: [], completed: [] };
+  activeStructures().forEach(s => {
+    const proj = state.projects.find(x => x.id === s.projectId);
+    if (!proj || projectComplete(proj)) return;
+    const dq = Number(s.drawQ) || 0;
+    const fullyDone = calcProgress(s) >= 100 && dq >= 4;
+    if (fullyDone) drawBuckets.completed.push(s);
+    else if (dq <= 0) drawBuckets.notstarted.push(s);
+    else if (dq === 1) drawBuckets.q1.push(s);
+    else if (dq === 2) drawBuckets.q2.push(s);
+    else if (dq === 3) drawBuckets.q3.push(s);
+    else drawBuckets.q4.push(s);
   });
+  view.drawBuckets = drawBuckets;
 
   let h = `<div class="between" style="margin-bottom:16px">
     <div><h2 style="font-size:17px">Insights</h2>
@@ -1028,69 +1048,69 @@ function renderInsights() {
   h += `<div class="grid kpis">
     ${kpi("Active projects", active.length, "")}
     ${kpi("At risk", atRisk.length, atRisk.length ? "alert" : "good", atRisk.length ? "behind pace or due soon" : "all on track")}
-    ${kpi("Negative slack", negSlack.length, negSlack.length ? "alert" : "good", "role-assignments that can't finish on time")}
-    ${kpi("Stale items", stale.length, stale.length ? "warn" : "good", "untouched 3+ working days")}
+    ${kpi("Can't finish on time", negSlack.length, negSlack.length ? "alert" : "good", "assignments that need more time or a new deadline")}
+    ${kpi("Not updated recently", stale.length, stale.length ? "warn" : "good", "no progress logged in 3+ working days")}
     ${kpi("Blocked", blocked.length, blocked.length ? "warn" : "", "waiting on someone")}
     ${kpi("Awaiting client", awaiting.length, awaiting.length ? "warn" : "", awaiting.length ? `oldest ${awaiting[0].days} wd` : "none pending")}
   </div>`;
 
   if (negSlack.length) {
     h += `<div class="sec-title">Overload — needs a decision</div><div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Structure</th><th>Project / phase</th><th>Role</th><th>Person</th><th>Slack</th><th></th></tr></thead><tbody>`;
+      <thead><tr><th>Structure</th><th>Project / phase</th><th>Role</th><th>Person</th><th>Time to spare</th><th></th></tr></thead><tbody>`;
     negSlack.slice(0, 12).forEach(({ s, pid, roleLabel, field, sl }) => {
       const p = state.projects.find(x => x.id === s.projectId);
       h += `<tr><td><strong>${esc(s.name)}</strong></td>
         <td class="small muted">${esc(p ? p.name : "?")} · ${esc(s.phase)}%</td>
         <td class="small">${esc(roleLabel)}</td>
         <td>${avatar(personName(pid))} <span class="small">${esc(personName(pid))}</span></td>
-        <td>${pill(round(sl, 1) + " d", "bad")}</td>
+        <td>${pill(spareText(sl), "bad")}</td>
         <td><button class="btn btn-s btn-sm" onclick="window.__suggest('${s.id}','${field}')">Who can take it</button></td></tr>`;
     });
     h += `</tbody></table></div>`;
   }
 
-  h += `<div class="sec-title">Calc pipeline — steps completed per structure</div>
-    <div class="card card-p"><div class="grid" style="grid-template-columns:repeat(7,1fr)">`;
-  ["0 of 6", "1 of 6", "2 of 6", "3 of 6", "4 of 6", "5 of 6", "6 of 6"].forEach((lab, i) => {
-    h += `<div><div class="tiny muted">${lab}</div><div style="font-size:20px;font-weight:600">${calcCounts[i]}</div></div>`;
-  });
-  h += `</div></div>`;
-
-  h += `<div class="sec-title">Drawing pipeline — where work is sitting</div>
-    <div class="card card-p"><div class="grid" style="grid-template-columns:repeat(5,1fr)">`;
-  ["Not started", "Q1 done", "Q2 done", "Q3 done", "Q4 done"].forEach((lab, i) => {
-    h += `<div><div class="tiny muted">${lab}</div><div style="font-size:20px;font-weight:600">${drawCounts[i]}</div></div>`;
-  });
-  h += `</div></div>`;
-
   h += `<div class="sec-title">Project health</div>`;
   if (!active.length) {
     h += emptyState("No active projects", "Create one in the Projects tab.");
   } else {
-    h += `<div class="tbl-wrap"><table class="tbl"><thead><tr>
-      <th>Project</th><th>Phase</th><th style="width:150px">Overall</th><th>Pace</th><th>Deadline</th><th>Flags</th>
-    </tr></thead><tbody>`;
+    h += `<div class="pboard">`;
     risks.sort((a, b) => b.r.score - a.r.score).forEach(({ p, r }) => {
       const pp = projProgress(p);
       const ph = r.phase ? p.phases[r.phase] : null;
-      h += `<tr style="cursor:pointer" onclick="window.__openProject('${p.id}')">
-        <td><strong>${esc(p.name)}</strong><div class="tiny muted">${esc(p.client || "")}</div></td>
-        <td>${r.phase ? pill(r.phase + "%", "accent") : "—"}</td>
-        <td>${bar(pp)}<div class="tiny muted" style="margin-top:3px">${round(pp)}%</div></td>
-        <td>${r.pace == null ? '<span class="tiny muted">—</span>' : pill(round(r.pace * 100) + "%", paceKind(r.pace))}</td>
-        <td class="small">${ph ? fmtShort(ph.deadline) : "—"}</td>
-        <td class="tiny muted">${esc(r.reasons.join(", ") || "—")}</td></tr>`;
+      const statusPill = r.score >= 45 ? pill("At risk", "bad") : r.score >= 25 ? pill("Watch", "warn") : pill("On track", "ok");
+      h += `<div class="pcard" onclick="window.__openProject('${p.id}')">
+        <div class="between" style="align-items:flex-start">
+          <div><div class="tiny muted" style="text-transform:uppercase;letter-spacing:.04em">${esc(p.client || "—")}</div>
+            <div style="font-weight:600;font-size:15px;margin-top:2px">${esc(p.name)}</div></div>
+          ${statusPill}
+        </div>
+        <div style="margin:12px 0 4px">${bar(pp)}</div>
+        <div class="between tiny muted"><span>${round(pp)}% overall</span>
+          <span>${r.phase ? r.phase + "% phase" : ""}${ph && ph.deadline ? " · due " + fmtShort(ph.deadline) : ""}</span></div>
+        ${r.pace != null ? `<div class="tiny muted" style="margin-top:4px">Moving at ${round(r.pace * 100)}% of the speed needed to hit this deadline</div>` : ""}
+        ${r.reasons.length ? `<div class="row" style="gap:5px;flex-wrap:wrap;margin-top:9px">${r.reasons.map(x => pill(x, "warn")).join("")}</div>` : ""}
+      </div>`;
     });
-    h += `</tbody></table></div>`;
+    h += `</div>`;
   }
+
+  h += `<div class="sec-title">Drawings — where work is sitting</div>
+    <div class="small muted" style="margin:-6px 0 10px">Click a number to see those drawings. A drawing stays visible here — even once finished — until its whole project wraps up.</div>
+    <div class="card card-p"><div class="grid" style="grid-template-columns:repeat(6,1fr)">`;
+  [["notstarted", "Not started"], ["q1", "Q1"], ["q2", "Q2"], ["q3", "Q3"], ["q4", "Q4"], ["completed", "Completed"]].forEach(([key, lab]) => {
+    h += `<div style="cursor:pointer" onclick="window.__showDrawingBucket('${key}')">
+      <div class="tiny muted">${lab}</div>
+      <div style="font-size:20px;font-weight:600;color:var(--accent)">${drawBuckets[key].length}</div></div>`;
+  });
+  h += `</div></div>`;
 
   h += `<div class="sec-title">Workload — every role counted</div>`;
   const people = activePeople();
   if (!people.length) {
-    h += emptyState("No team members yet", "Add your team so workload and slack can be tracked.", `<button class="btn btn-p" onclick="window.__go('team')">Go to Team</button>`);
+    h += emptyState("No team members yet", "Add your team so workload and available time can be tracked.", `<button class="btn btn-p" onclick="window.__go('team')">Go to Team</button>`);
   } else {
     h += `<div class="tbl-wrap"><table class="tbl"><thead><tr>
-      <th>Person</th><th>Active assignments</th><th>Total remaining</th><th>Tightest slack</th></tr></thead><tbody>`;
+      <th>Person</th><th>Active assignments</th><th>Total remaining</th><th>Least time to spare</th></tr></thead><tbody>`;
     people.forEach(p => {
       const mine = myAssignments(p.id);
       const totalDays = mine.reduce((a, x) => a + x.days, 0);
@@ -1103,7 +1123,7 @@ function renderInsights() {
           <div class="tiny muted" style="margin-left:29px">${esc((p.roles || []).join(", "))}</div></td>
         <td>${mine.length}</td>
         <td class="small">${round(totalDays, 1)} d</td>
-        <td>${worst == null ? '<span class="tiny muted">—</span>' : pill(round(worst, 1) + " d", worst < 0 ? "bad" : worst < 3 ? "warn" : "ok")}</td></tr>`;
+        <td>${worst == null ? '<span class="tiny muted">—</span>' : pill(spareText(worst), spareKind(worst))}</td></tr>`;
     });
     h += `</tbody></table></div>`;
   }
@@ -1159,7 +1179,7 @@ function renderProjects() {
       <div style="margin-top:11px;padding-top:10px;border-top:1px solid var(--line-2)" class="between">
         <div class="row" style="gap:6px">
           <span class="tiny muted">${st.length} structure${st.length === 1 ? "" : "s"}</span>
-          ${staleN ? pill(staleN + " stale", "warn") : ""}
+          ${staleN ? pill(staleN + " not updated", "warn") : ""}
           ${ph && ph.kaStatus === "Submitted" ? pill("Submitted", "ok") : ""}
         </div>
         ${complete ? "" : r.score >= 45 ? pill("At risk", "bad") : r.score >= 25 ? pill("Watch", "warn") : pill("On track", "ok")}
@@ -1233,7 +1253,7 @@ function renderDetail() {
           <span class="tiny muted">${avatar(personName(s.engineerId), 'Engineer: ' + personName(s.engineerId))}${avatar(personName(s.designerId), 'Designer: ' + personName(s.designerId))}</span>
           <span class="row" style="gap:3px">
             ${s.blockedReason ? pill("Blocked", "warn") : ""}
-            ${stale ? pill("Stale", "warn") : ""}
+            ${stale ? pill("No update", "warn") : ""}
             <button class="iconbtn" onclick="event.stopPropagation();window.__editStructure('${s.id}')" title="Edit">&#9998;</button>
           </span></div></div></td>`;
     });
@@ -1283,7 +1303,7 @@ function renderMyWork() {
 
   let h = `<div class="between" style="margin-bottom:16px">
     <div><h2 style="font-size:17px">My work</h2>
-      <div class="small muted">${esc(state.me)} · every role, sorted by slack</div></div>
+      <div class="small muted">${esc(state.me)} · every role, sorted by time to spare</div></div>
     <button class="btn btn-s" onclick="window.__whoami()">Change name</button></div>`;
 
   if (!mine.length) {
@@ -1294,7 +1314,7 @@ function renderMyWork() {
     h += `<div class="badbox"><strong>${neg.length} assignment${neg.length === 1 ? "" : "s"} can't finish on time</strong> at current estimates. Talk to your PM about reassigning or moving a date.</div>`;
   }
   h += `<div class="tbl-wrap"><table class="tbl"><thead><tr>
-    <th>Structure</th><th>Project / phase</th><th>Your role</th><th>Remaining</th><th>Deadline</th><th>Slack</th><th></th></tr></thead><tbody>`;
+    <th>Structure</th><th>Project / phase</th><th>Your role</th><th>Remaining</th><th>Deadline</th><th>Time to spare</th><th></th></tr></thead><tbody>`;
   mine.forEach(({ s, role, days, dl, sl }) => {
     const p = state.projects.find(x => x.id === s.projectId);
     h += `<tr><td><strong>${esc(s.name)}</strong></td>
@@ -1303,7 +1323,7 @@ function renderMyWork() {
       <td class="small">${esc(role)}</td>
       <td class="small">${round(days, 1)} d</td>
       <td class="small">${fmtShort(dl)}</td>
-      <td>${sl == null ? '<span class="tiny muted">—</span>' : pill(round(sl, 1) + " d", sl < 0 ? "bad" : sl < 3 ? "warn" : "ok")}</td>
+      <td>${sl == null ? '<span class="tiny muted">—</span>' : pill(spareText(sl), spareKind(sl))}</td>
       <td><button class="iconbtn" onclick="window.__editStructure('${s.id}')" title="Edit">&#9998;</button></td></tr>`;
   });
   return h + `</tbody></table></div>`;
@@ -1512,7 +1532,7 @@ function showImpact(project, phase, newDeadline) {
   });
   const names = Object.keys(people);
   box.innerHTML = names.length
-    ? `<div class="warnbox"><strong>Heads up:</strong> that date puts ${names.length} person${names.length === 1 ? "" : "s"} into negative slack — ${names.map(n => `${esc(n)}: ${esc(people[n].join(", "))}`).join(" · ")}</div>`
+    ? `<div class="warnbox"><strong>Heads up:</strong> that date doesn't leave ${names.length} person${names.length === 1 ? "" : "s"} enough time — ${names.map(n => `${esc(n)}: ${esc(people[n].join(", "))}`).join(" · ")}</div>`
     : `<div class="okbox">No one goes negative with that date.</div>`;
 }
 window.__editPhase = (pid) => projectModal(pid);
@@ -1740,12 +1760,12 @@ window.__suggest = (sid, field) => {
   const list = suggestReassignment(s, ROLE_LABELS[field], field, dl, activePeople(), activeStructures(), projectsById);
   openModal({
     body: `<h3>Who can take "${esc(s.name)}"?</h3><p class="sub">${esc(ROLE_LABELS[field])}, due ${fmtDate(dl)}.</p>
-    ${list.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Person</th><th>Current load</th><th>Slack if they take it</th><th></th></tr></thead><tbody>
+    ${list.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Person</th><th>Current load</th><th>Time to spare if assigned</th><th></th></tr></thead><tbody>
       ${list.map(c => `<tr><td>${avatar(c.person.name)} <span style="margin-left:6px">${esc(c.person.name)}</span></td>
         <td class="small">${c.currentLoad} item${c.currentLoad === 1 ? "" : "s"}</td>
-        <td>${pill("+" + round(c.projectedSlack, 1) + " d", "ok")}</td>
+        <td>${pill(spareText(c.projectedSlack), "ok")}</td>
         <td><button class="btn btn-s btn-sm" onclick="window.__reassign('${s.id}','${field}','${c.person.id}')">Assign</button></td></tr>`).join("")}
-    </tbody></table></div>` : `<div class="warnbox">No one has enough slack to absorb this before the deadline. The realistic options are moving the deadline or reducing scope.</div>`}
+    </tbody></table></div>` : `<div class="warnbox">No one has enough spare time to take this on before the deadline. The realistic options are moving the deadline or reducing scope.</div>`}
     <div class="acts"><button class="btn btn-s" onclick="window.__closeModal()">Close</button></div>`
   });
 };
@@ -1799,6 +1819,35 @@ window.__bulkAssign = (projectId) => {
       render();
       toast(`Assigned ${ids.length} structure${ids.length === 1 ? "" : "s"} to ${personName(person)}`);
     };
+  });
+};
+
+const DRAW_BUCKET_LABELS = { notstarted: "Not started", q1: "Q1", q2: "Q2", q3: "Q3", q4: "Q4", completed: "Completed" };
+window.__showDrawingBucket = (key) => {
+  const list = (view.drawBuckets && view.drawBuckets[key]) || [];
+  const today = new Date();
+  openModal({
+    wide: true,
+    body: `<h3>${esc(DRAW_BUCKET_LABELS[key] || key)}</h3><p class="sub">${list.length} drawing${list.length === 1 ? "" : "s"}</p>
+    ${!list.length ? emptyState("Nothing here", "No drawings are currently in this stage.") : `
+    <div class="tbl-wrap"><table class="tbl"><thead><tr>
+      <th>Drawing</th><th>Project</th><th>Status</th><th>Assigned on</th><th>Deadline</th><th>Person</th><th>Flags</th>
+    </tr></thead><tbody>${list.map(s => {
+      const proj = state.projects.find(x => x.id === s.projectId);
+      const dl = proj && proj.phases && proj.phases[s.phase] ? proj.phases[s.phase].deadline : null;
+      const flags = [];
+      if (s.blockedReason) flags.push(s.blockedReason);
+      if (isStale(s, today)) flags.push("No update");
+      return `<tr style="cursor:pointer" onclick="window.__closeModal();window.__editStructure('${s.id}')">
+        <td><strong>${esc(s.name)}</strong></td>
+        <td class="small">${esc(proj ? proj.name : "?")}</td>
+        <td>${pill(s.phase + "%", "accent")}</td>
+        <td class="small">${fmtShort(s.designerAssignedAt)}</td>
+        <td class="small">${fmtShort(dl)}</td>
+        <td>${avatar(personName(s.designerId))} <span class="small">${esc(personName(s.designerId) || "Unassigned")}</span></td>
+        <td class="tiny muted">${esc(flags.join(", ") || "—")}</td></tr>`;
+    }).join("")}</tbody></table></div>`}
+    <div class="acts"><button class="btn btn-s" onclick="window.__closeModal()">Close</button></div>`
   });
 };
 
