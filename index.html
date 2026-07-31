@@ -136,10 +136,11 @@ table.tbl tbody tr:hover { background: #fafbfc; }
 .gridtbl { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; }
 .gridtbl th, .gridtbl td { border-bottom: 1px solid var(--line-2); border-right: 1px solid var(--line-2); padding: 9px 11px; }
 .gridtbl th { font-size: 11.5px; font-weight: 600; color: var(--ink-3); text-transform: uppercase;
-              letter-spacing: .04em; background: #fbfbfa; position: sticky; top: 56px; z-index: 5; }
+              letter-spacing: .04em; background: #fbfbfa; position: sticky; top: 0; z-index: 5; }
 .gridtbl th:last-child, .gridtbl td:last-child { border-right: none; }
 .gridtbl .namecol { position: sticky; left: 0; background: #fff; z-index: 4; min-width: 190px; }
 .gridtbl th.namecol { z-index: 6; background: #fbfbfa; }
+.grid-scroll { max-height: 68vh; overflow: auto; border-radius: 11px; }
 .cell { min-width: 132px; }
 .cell.na { background: #fbfbfa; }
 .cellinner { display: flex; flex-direction: column; gap: 5px; }
@@ -1125,7 +1126,7 @@ function renderDetail() {
   }
 
   h += `<div class="sec-title">Structures × phases</div>
-  <div class="tbl-wrap scroll-x"><table class="gridtbl"><thead><tr>
+  <div class="tbl-wrap grid-scroll"><table class="gridtbl"><thead><tr>
     <th class="namecol">Structure</th>${inc.map(ph => `<th>${ph}%</th>`).join("")}</tr></thead><tbody>`;
   names.forEach(nm => {
     h += `<tr><td class="namecol"><strong style="font-size:13px">${esc(nm)}</strong></td>`;
