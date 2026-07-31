@@ -236,6 +236,38 @@ table.tbl tbody tr:hover { background: #fafbfc; }
 select:disabled { background: var(--line-2); color: var(--ink-3); }
 .datefact { font-size: 11.5px; color: var(--ink-3); padding: 6px 0; }
 
+/* ===== toasts ===== */
+#toasts { position: fixed; bottom: 20px; right: 20px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
+.toast { background: var(--ink); color: #fff; padding: 11px 14px; border-radius: 9px; font-size: 13px;
+         box-shadow: 0 10px 30px rgba(0,0,0,.25); display: flex; align-items: center; gap: 14px;
+         animation: toastIn .2s cubic-bezier(.2,.7,.3,1); max-width: 360px; }
+.toast.out { animation: toastOut .18s ease forwards; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes toastOut { to { opacity: 0; transform: translateY(4px); } }
+.toast-act { background: rgba(255,255,255,.15); border: none; color: #fff; font: inherit; font-weight: 600;
+             padding: 4px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.toast-act:hover { background: rgba(255,255,255,.25); }
+
+/* ===== activity feed ===== */
+.afeed { display: flex; flex-direction: column; }
+.aitem { display: flex; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--line-2); font-size: 13px; }
+.aitem:last-child { border-bottom: none; }
+.aitem .adot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-top: 6px; flex: none; }
+.aitem .atext { flex: 1; }
+.aitem .awho { font-weight: 600; }
+.aitem .awhen { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
+
+/* ===== bulk select ===== */
+.bulkbar { display: flex; align-items: center; gap: 10px; background: var(--ink); color: #fff; border-radius: 9px;
+           padding: 9px 13px; margin-bottom: 12px; font-size: 13px; }
+.bulkbar select, .bulkbar button { font-size: 12.5px; }
+.picklist { max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.pickrow { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--line-2); font-size: 13px; }
+.pickrow:last-child { border-bottom: none; }
+.pickrow input { width: auto; }
+.toggle-row { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-2); cursor: pointer; user-select: none; }
+.toggle-row input { width: auto; }
+
 
 </style>
 </head>
@@ -257,6 +289,7 @@ select:disabled { background: var(--line-2); color: var(--ink-3); }
 <main id="main"></main>
 <div class="modal-bg" id="modal-bg"></div>
 <div class="session-bg" id="session-bg"></div>
+<div id="toasts"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -660,10 +693,18 @@ async function updateProject(id, updates, note) {
 }
 async function deleteProject(id) {
   const batch = writeBatch(db);
-  state.structures.filter(s => s.projectId === id).forEach(s => batch.delete(doc(db, "structuresV2", s.id)));
-  batch.delete(doc(db, "projectsV2", id));
+  const stamp = todayISO();
+  state.structures.filter(s => s.projectId === id).forEach(s => batch.update(doc(db, "structuresV2", s.id), { deleted: true, deletedAt: stamp }));
+  batch.update(doc(db, "projectsV2", id), { deleted: true, deletedAt: stamp });
   await batch.commit();
   await log("Deleted project", id);
+}
+async function restoreProject(id) {
+  const batch = writeBatch(db);
+  state.structures.filter(s => s.projectId === id).forEach(s => batch.update(doc(db, "structuresV2", s.id), { deleted: false, deletedAt: null }));
+  batch.update(doc(db, "projectsV2", id), { deleted: false, deletedAt: null });
+  await batch.commit();
+  await log("Restored project", id);
 }
 
 async function addStructure(data) {
@@ -678,8 +719,23 @@ async function updateStructure(id, updates, note) {
   if (note) await log("Updated structure", note);
 }
 async function deleteStructure(id) {
-  await deleteDoc(doc(db, "structuresV2", id));
+  await updateDoc(doc(db, "structuresV2", id), { deleted: true, deletedAt: todayISO() });
   await log("Deleted structure", id);
+}
+async function restoreStructure(id) {
+  await updateDoc(doc(db, "structuresV2", id), { deleted: false, deletedAt: null });
+  await log("Restored structure", id);
+}
+async function duplicateStructure(id, overrides) {
+  const s = state.structures.find(x => x.id === id);
+  if (!s) return null;
+  const { id: _drop, created: _c, deleted: _d, deletedAt: _da, ...rest } = s;
+  const ref = await addDoc(collection(db, "structuresV2"), {
+    ...rest, ...overrides, calcSteps: {}, drawQ: 0, reworkCount: 0,
+    lastTouched: todayISO(), created: serverTimestamp()
+  });
+  await log("Duplicated structure", s.name);
+  return ref.id;
 }
 
 async function addPerson(data) {
@@ -688,7 +744,12 @@ async function addPerson(data) {
   return ref.id;
 }
 async function updatePerson(id, updates) { await updateDoc(doc(db, "peopleV2", id), updates); }
-async function deletePerson(id) { await deleteDoc(doc(db, "peopleV2", id)); }
+async function deletePerson(id) {
+  await updateDoc(doc(db, "peopleV2", id), { deleted: true, deletedAt: todayISO() });
+}
+async function restorePerson(id) {
+  await updateDoc(doc(db, "peopleV2", id), { deleted: false, deletedAt: null });
+}
 
 async function addType(data) { const ref = await addDoc(collection(db, "structureTypesV2"), data); return ref.id; }
 async function updateType(id, updates) { await updateDoc(doc(db, "structureTypesV2", id), updates); }
@@ -829,19 +890,37 @@ function confirmDialog(message, onYes) {
   el("cf-yes").onclick = () => { closeModal(); onYes(); };
 }
 
+function toast(msg, actionLabel, actionFn, ms) {
+  const box = el("toasts");
+  if (!box) return;
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.innerHTML = `<span>${esc(msg)}</span>` + (actionLabel ? `<button class="toast-act">${esc(actionLabel)}</button>` : "");
+  box.appendChild(t);
+  if (actionLabel && actionFn) {
+    t.querySelector(".toast-act").onclick = () => { actionFn(); dismiss(); };
+  }
+  const timer = setTimeout(dismiss, ms || 6000);
+  function dismiss() {
+    clearTimeout(timer);
+    t.classList.add("out");
+    setTimeout(() => t.remove(), 200);
+  }
+}
 
 
-const view = { tab: "insights", projectId: null, prevRisk: {} };
+
+const view = { tab: "insights", projectId: null, prevRisk: {}, showCompleted: false, bulkMode: false };
 window.__closeModal = closeModal;
 
 /* ---------------- identity: in-memory only, asked once per page load (CL-04) ---------------- */
 function bootIdentity() {
-  if (!state.people.length) { render(); return; }
+  if (!activePeople().length) { render(); return; }
   showSessionPicker();
 }
 function showSessionPicker() {
   const bg = el("session-bg");
-  const people = state.people.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const people = activePeople().slice().sort((a, b) => a.name.localeCompare(b.name));
   bg.innerHTML = `<div class="session-card">
     <h2>Who's viewing?</h2>
     <p>Pick your name for this visit — it drives "My work" and note attribution.</p>
@@ -862,8 +941,13 @@ window.__whoami = () => { document.getElementById("session-bg").style.display = 
 
 /* ---------------- helpers ---------------- */
 const byId = (list) => Object.fromEntries(list.map(o => [o.id, o]));
+function activeProjects() { return state.projects.filter(p => !p.deleted); }
+function activeStructures() { return state.structures.filter(s => !s.deleted); }
+function activePeople() { return state.people.filter(p => !p.deleted); }
+// Name lookups always search the FULL (unfiltered) list, so a structure assigned to someone
+// who's since been removed from the team still shows their name instead of going blank.
 function personName(id) { const p = state.people.find(x => x.id === id); return p ? p.name : ""; }
-function structuresOf(projectId) { return state.structures.filter(s => s.projectId === projectId); }
+function structuresOf(projectId) { return state.structures.filter(s => s.projectId === projectId && !s.deleted); }
 function byPhase(list) {
   const m = {}; PHASES.forEach(p => m[p] = []);
   list.forEach(s => { if (!m[s.phase]) m[s.phase] = []; m[s.phase].push(s); });
@@ -883,7 +967,7 @@ function clientKind(c) { return c === "Client comments received" ? "ok" : c === 
 function myAssignments(personId) {
   if (!personId) return [];
   const out = [];
-  state.structures.forEach(s => {
+  activeStructures().forEach(s => {
     personRolesOnStructure(s, personId).forEach(r => {
       if (r.days > 0) out.push({ s, role: r.role, days: r.days });
     });
@@ -893,7 +977,7 @@ function myAssignments(personId) {
 
 /* ---------------- INSIGHTS ---------------- */
 function renderInsights() {
-  const P = state.projects, ST = state.structures;
+  const P = activeProjects(), ST = activeStructures();
   const today = new Date();
   const active = P.filter(p => !projectComplete(p));
   const risks = active.map(p => ({ p, r: projectRisk(p, byPhase(structuresOf(p.id)), today) }));
@@ -1001,7 +1085,7 @@ function renderInsights() {
   }
 
   h += `<div class="sec-title">Workload — every role counted</div>`;
-  const people = state.people;
+  const people = activePeople();
   if (!people.length) {
     h += emptyState("No team members yet", "Add your team so workload and slack can be tracked.", `<button class="btn btn-p" onclick="window.__go('team')">Go to Team</button>`);
   } else {
@@ -1036,15 +1120,22 @@ function emptyState(title, msg, action) {
 /* ---------------- PROJECTS BOARD ---------------- */
 function renderProjects() {
   const today = new Date();
-  const list = state.projects.map(p => ({ p, r: projectRisk(p, byPhase(structuresOf(p.id)), today), prog: projProgress(p) }));
+  const completedCount = activeProjects().filter(p => projectComplete(p)).length;
+  const list = activeProjects().filter(p => view.showCompleted || !projectComplete(p)).map(p => ({ p, r: projectRisk(p, byPhase(structuresOf(p.id)), today), prog: projProgress(p) }));
   list.sort((a, b) => b.r.score - a.r.score);
 
   let h = `<div class="between" style="margin-bottom:16px">
     <div><h2 style="font-size:17px">Projects</h2>
     <div class="small muted">Ranked by risk — most urgent first</div></div>
-    <button class="btn btn-p" onclick="window.__newProject()">+ New project</button></div>`;
+    <div class="row">
+      ${completedCount ? `<label class="toggle-row"><input type="checkbox" id="show-completed" ${view.showCompleted ? "checked" : ""}
+          onchange="window.__toggleShowCompleted(this.checked)" /> Show ${completedCount} completed</label>` : ""}
+      <button class="btn btn-p" onclick="window.__newProject()">+ New project</button>
+    </div></div>`;
 
-  if (!list.length) return h + emptyState("No projects yet", "Create your first project to get started.",
+  if (!list.length) return h + emptyState(
+    view.showCompleted ? "No projects yet" : "No active projects",
+    view.showCompleted ? "Create your first project to get started." : "Everything's complete, or nothing's been created yet.",
     `<button class="btn btn-p" onclick="window.__newProject()">+ New project</button>`);
 
   h += `<div class="pboard">`;
@@ -1079,7 +1170,7 @@ function renderProjects() {
 
 /* ---------------- PROJECT DETAIL ---------------- */
 function renderDetail() {
-  const p = state.projects.find(x => x.id === view.projectId);
+  const p = state.projects.find(x => x.id === view.projectId && !x.deleted);
   if (!p) { view.tab = "projects"; return renderProjects(); }
   const today = new Date();
   const st = structuresOf(p.id);
@@ -1094,6 +1185,7 @@ function renderDetail() {
       <div class="small muted">${esc(p.client || "")} · Manager ${esc(personName(p.managerId) || "—")} · Lead ${esc(personName(p.leadId) || "—")}</div></div>
     <div class="row">
       <button class="btn btn-s" onclick="window.__editProject('${p.id}')">Edit project</button>
+      <button class="btn btn-s" onclick="window.__bulkAssign('${p.id}')">Bulk assign</button>
       <button class="btn btn-p" onclick="window.__addStructure('${p.id}')">+ Structure</button>
     </div></div>`;
 
@@ -1217,23 +1309,82 @@ function renderMyWork() {
   return h + `</tbody></table></div>`;
 }
 
+/* ---------------- ACTIVITY FEED ---------------- */
+function activityListHtml(q) {
+  const query = (q || "").toLowerCase();
+  const items = state.activity.slice()
+    .sort((a, b) => String(b.atISO || "").localeCompare(String(a.atISO || "")))
+    .filter(a => !query || `${a.who} ${a.action} ${a.detail}`.toLowerCase().includes(query));
+
+  if (!state.activity.length) return emptyState("Nothing yet", "Every status change, reassignment, and note shows up here as it happens.");
+  if (!items.length) return emptyState("No matches", "Try a different name or keyword.");
+
+  let h = `<div class="card card-p"><div class="afeed">`;
+  items.slice(0, 200).forEach(a => {
+    h += `<div class="aitem"><div class="adot"></div><div class="atext">
+      <span class="awho">${esc(a.who)}</span> ${esc(a.action.toLowerCase())}${a.detail ? ` — ${esc(a.detail)}` : ""}
+    </div><div class="awhen">${fmtShort(a.atISO)}</div></div>`;
+  });
+  h += `</div></div>`;
+  if (items.length > 200) h += `<div class="tiny muted" style="margin-top:8px">Showing the most recent 200 of ${items.length}.</div>`;
+  return h;
+}
+window.__filterActivity = (q) => {
+  view.activityFilter = q;
+  const box = el("activity-list");
+  if (box) box.innerHTML = activityListHtml(q);
+};
+function renderActivity() {
+  let h = `<div class="between" style="margin-bottom:16px">
+    <div><h2 style="font-size:17px">Activity</h2><div class="small muted">Everything that's changed, newest first</div></div>
+    <input id="act-filter" placeholder="Filter by person or project…" oninput="window.__filterActivity(this.value)"
+      style="width:240px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:13px" value="${esc(view.activityFilter || "")}" />
+  </div>`;
+  h += `<div id="activity-list">${activityListHtml(view.activityFilter)}</div>`;
+  return h;
+}
+
 /* ---------------- TEAM & TYPES ---------------- */
 function renderTeam() {
   let h = `<div class="between" style="margin-bottom:16px">
     <div><h2 style="font-size:17px">Team</h2><div class="small muted">People, roles, and availability</div></div>
     <button class="btn btn-p" onclick="window.__editPerson()">+ Add person</button></div>`;
-  if (!state.people.length) {
+  const teamPeople = activePeople();
+  if (!teamPeople.length) {
     h += emptyState("No team members", "Add people so work can be assigned and workload tracked.",
       `<button class="btn btn-p" onclick="window.__editPerson()">+ Add person</button>`);
   } else {
     h += `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Name</th><th>Roles</th><th>Availability</th><th></th></tr></thead><tbody>`;
-    state.people.forEach(p => {
+    teamPeople.forEach(p => {
       const av = (p.availability || []).map(b => `${fmtShort(b.from)}–${fmtShort(b.to)} @ ${b.percent}%`).join(", ");
       h += `<tr><td>${avatar(p.name)} <span style="margin-left:6px;font-weight:500">${esc(p.name)}</span></td>
         <td class="small">${esc((p.roles || []).join(", ") || "—")}</td>
         <td class="small muted">${esc(av || "Full availability")}</td>
         <td style="text-align:right"><button class="iconbtn" onclick="window.__editPerson('${p.id}')">&#9998;</button>
           <button class="iconbtn" onclick="window.__delPerson('${p.id}')">&#10005;</button></td></tr>`;
+    });
+    h += `</tbody></table></div>`;
+  }
+
+  const delPeople = state.people.filter(p => p.deleted);
+  const delProjects = state.projects.filter(p => p.deleted);
+  const delStructures = state.structures.filter(s => s.deleted);
+  if (delPeople.length || delProjects.length || delStructures.length) {
+    h += `<div class="sec-title">Recently deleted</div><div class="tbl-wrap"><table class="tbl"><thead><tr>
+      <th>Item</th><th>Type</th><th>Deleted</th><th></th></tr></thead><tbody>`;
+    delProjects.forEach(p => {
+      h += `<tr><td><strong>${esc(p.name)}</strong></td><td class="small">Project</td><td class="small muted">${fmtShort(p.deletedAt)}</td>
+        <td style="text-align:right"><button class="btn btn-s btn-sm" onclick="window.__restoreProject('${p.id}')">Restore</button></td></tr>`;
+    });
+    delStructures.forEach(s => {
+      const proj = state.projects.find(x => x.id === s.projectId);
+      h += `<tr><td><strong>${esc(s.name)}</strong><div class="tiny muted">${esc(proj ? proj.name : "")}</div></td>
+        <td class="small">Structure</td><td class="small muted">${fmtShort(s.deletedAt)}</td>
+        <td style="text-align:right"><button class="btn btn-s btn-sm" onclick="window.__restoreStructure('${s.id}')">Restore</button></td></tr>`;
+    });
+    delPeople.forEach(p => {
+      h += `<tr><td><strong>${esc(p.name)}</strong></td><td class="small">Person</td><td class="small muted">${fmtShort(p.deletedAt)}</td>
+        <td style="text-align:right"><button class="btn btn-s btn-sm" onclick="window.__restorePerson('${p.id}')">Restore</button></td></tr>`;
     });
     h += `</tbody></table></div>`;
   }
@@ -1258,13 +1409,16 @@ function renderTeam() {
   }
   return h;
 }
+window.__restoreProject = async (id) => { await restoreProject(id); render(); toast("Project restored"); };
+window.__restoreStructure = async (id) => { await restoreStructure(id); render(); toast("Structure restored"); };
+window.__restorePerson = async (id) => { await restorePerson(id); render(); toast("Person restored"); };
 
 /* ---------------- project modal (CL-01/02/03) ---------------- */
 window.__newProject = () => projectModal(null);
 window.__editProject = (id) => projectModal(id);
 function projectModal(id) {
   const p = id ? state.projects.find(x => x.id === id) : null;
-  const people = state.people;
+  const people = activePeople();
   openModal({
     wide: true,
     body: `<h3>${p ? "Edit project" : "New project"}</h3><p class="sub">Phases can be excluded if the client skips them — progress reweights automatically.</p>
@@ -1332,16 +1486,21 @@ function projectModal(id) {
       closeModal();
       if (p) await updateProject(p.id, data, name); else { const nid = await addProject(data); view.projectId = nid; view.tab = "detail"; }
       render();
+      toast(p ? `"${name}" saved` : `"${name}" created`);
     };
-    if (p) el("p-del").onclick = () => confirmDialog(`Delete "${p.name}" and all its structures?`, async () => {
-      closeModal(); view.tab = "projects"; await deleteProject(p.id); render();
-    });
+    if (p) el("p-del").onclick = async () => {
+      const n = structuresOf(p.id).length;
+      closeModal(); view.tab = "projects";
+      await deleteProject(p.id); render();
+      toast(`Deleted "${p.name}"${n ? ` and ${n} structure${n === 1 ? "" : "s"}` : ""}`, "Undo",
+        async () => { await restoreProject(p.id); render(); });
+    };
   });
 }
 function showImpact(project, phase, newDeadline) {
   const box = el("impact");
   if (!box || !newDeadline) return;
-  const affected = state.structures.filter(s => s.projectId === project.id && s.phase === phase && isActionable(s));
+  const affected = state.structures.filter(s => s.projectId === project.id && s.phase === phase && !s.deleted && isActionable(s));
   const people = {};
   affected.forEach(s => {
     [["engineerId", engineerRemainingDays], ["designerId", designerRemainingDays]].forEach(([field, fn]) => {
@@ -1366,9 +1525,16 @@ function structureModal(sid, pid) {
   const projectId = s ? s.projectId : pid;
   const proj = state.projects.find(x => x.id === projectId);
   const inc = proj ? includedPhases(proj) : PHASES;
-  const engineers = state.people.filter(p => (p.roles || []).includes("Engineer"));
-  const designers = state.people.filter(p => (p.roles || []).includes("Designer"));
-  const reviewers = state.people; // anyone can review
+  const withCurrent = (list, currentId) => {
+    if (currentId && !list.some(p => p.id === currentId)) {
+      const cur = state.people.find(p => p.id === currentId);
+      if (cur) return [...list, cur];
+    }
+    return list;
+  };
+  const engineers = withCurrent(activePeople().filter(p => (p.roles || []).includes("Engineer")), s ? s.engineerId : "");
+  const designers = withCurrent(activePeople().filter(p => (p.roles || []).includes("Designer")), s ? s.designerId : "");
+  const reviewers = activePeople(); // anyone can review
   const steps = (s && s.calcSteps) || {};
 
   const calcStepsHtml = CALC_STEPS.map(st => `
@@ -1391,7 +1557,7 @@ function structureModal(sid, pid) {
         <div class="rb-head">Calc</div>
         <div class="f2"><div class="f"><label>Engineer</label><select id="s-eng">${opts(engineers, s ? s.engineerId : "", "id", "name", "— unassigned —")}</select></div>
           <div class="f"><label>Estimate (days)</label><input type="number" step="0.5" id="s-ce" value="${s ? s.calcEstDays || "" : ""}" /></div></div>
-        <div class="f"><label>Reviewer</label><select id="s-crev">${opts(reviewers, s ? s.calcReviewerId : "", "id", "name", "— unassigned —")}</select></div>
+        <div class="f"><label>Reviewer</label><select id="s-crev">${opts(withCurrent(reviewers, s ? s.calcReviewerId : ""), s ? s.calcReviewerId : "", "id", "name", "— unassigned —")}</select></div>
         ${calcStepsHtml}
       </div>
       <div class="rolebox" style="flex:1">
@@ -1399,15 +1565,15 @@ function structureModal(sid, pid) {
         <div class="f2"><div class="f"><label>Designer</label><select id="s-des">${opts(designers, s ? s.designerId : "", "id", "name", "— unassigned —")}</select></div>
           <div class="f"><label>Estimate (days)</label><input type="number" step="0.5" id="s-de" value="${s ? s.drawEstDays || "" : ""}" /></div></div>
         <div class="f"><label>Q1 Self check</label><div class="small muted" style="padding:6px 0">Done by the designer once drafting is ready — same estimate above covers this.</div></div>
-        <div class="f"><label>Q2 reviewer (engineer check)</label><select id="s-q2">${opts(reviewers, s ? s.drawQ2ReviewerId : "", "id", "name", "— unassigned —")}</select></div>
-        <div class="f"><label>Q3 reviewer (independent)</label><select id="s-q3">${opts(reviewers, s ? s.drawQ3ReviewerId : "", "id", "name", "— unassigned —")}</select></div>
-        <div class="f"><label>Q4 reviewer (PE review)</label><select id="s-q4">${opts(reviewers, s ? s.drawQ4ReviewerId : "", "id", "name", "— unassigned —")}</select></div>
+        <div class="f"><label>Q2 reviewer (engineer check)</label><select id="s-q2">${opts(withCurrent(reviewers, s ? s.drawQ2ReviewerId : ""), s ? s.drawQ2ReviewerId : "", "id", "name", "— unassigned —")}</select></div>
+        <div class="f"><label>Q3 reviewer (independent)</label><select id="s-q3">${opts(withCurrent(reviewers, s ? s.drawQ3ReviewerId : ""), s ? s.drawQ3ReviewerId : "", "id", "name", "— unassigned —")}</select></div>
+        <div class="f"><label>Q4 reviewer (PE review)</label><select id="s-q4">${opts(withCurrent(reviewers, s ? s.drawQ4ReviewerId : ""), s ? s.drawQ4ReviewerId : "", "id", "name", "— unassigned —")}</select></div>
         <div class="f" style="margin-top:6px"><label>Drawing stage reached</label>${qaBar(s ? s.drawQ : 0, s ? s.id : "new", "drawQ")}</div>
       </div>
     </div>
 
     ${s ? `<div class="hr"></div><div class="sec-title" style="margin:0 0 8px">Notes on this structure</div>${commentsBlock({ projectId, structureId: s.id })}` : ""}
-    <div class="acts">${s ? `<button class="btn btn-d" id="s-del">Delete</button>` : ""}
+    <div class="acts">${s ? `<button class="btn btn-d" id="s-del">Delete</button><button class="btn btn-s" id="s-dup">Duplicate</button>` : ""}
       <button class="btn btn-s" onclick="window.__closeModal()">Cancel</button>
       <button class="btn btn-p" id="s-save">Save</button></div>`
   }, () => {
@@ -1431,10 +1597,20 @@ function structureModal(sid, pid) {
       closeModal();
       if (s) await updateStructure(s.id, data, name); else await addStructure(data);
       render();
+      toast(s ? `"${name}" saved` : `"${name}" added`);
     };
-    if (s) el("s-del").onclick = () => confirmDialog(`Delete structure "${s.name}"?`, async () => {
-      closeModal(); await deleteStructure(s.id); render();
-    });
+    if (s) el("s-del").onclick = async () => {
+      closeModal();
+      await deleteStructure(s.id); render();
+      toast(`Deleted "${s.name}"`, "Undo", async () => { await restoreStructure(s.id); render(); });
+    };
+    if (s) el("s-dup").onclick = async () => {
+      closeModal();
+      const newId = await duplicateStructure(s.id, { name: `${s.name} (copy)` });
+      render();
+      toast(`Duplicated "${s.name}" — rename and adjust as needed`);
+      structureModal(newId, null);
+    };
   });
 }
 
@@ -1517,9 +1693,10 @@ function avRow(b, i) {
     <input type="number" class="av-p" value="${b.percent != null ? b.percent : 50}" min="0" max="100" style="width:78px;padding:7px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:13px" />
     <span class="tiny muted">%</span><button class="iconbtn" type="button" onclick="this.parentNode.remove()">&#10005;</button></div>`;
 }
-window.__delPerson = (id) => {
+window.__delPerson = async (id) => {
   const p = state.people.find(x => x.id === id);
-  confirmDialog(`Remove ${p ? p.name : "this person"} from the team?`, async () => { await deletePerson(id); render(); });
+  await deletePerson(id); render();
+  toast(`Removed ${p ? p.name : "person"} from the team`, "Undo", async () => { await restorePerson(id); render(); });
 };
 window.__editType = (id) => {
   const t = id ? state.structureTypes.find(x => x.id === id) : null;
@@ -1560,7 +1737,7 @@ window.__suggest = (sid, field) => {
   if (!s) return;
   const dl = deadlineFor(s);
   const projectsById = byId(state.projects);
-  const list = suggestReassignment(s, ROLE_LABELS[field], field, dl, state.people, state.structures, projectsById);
+  const list = suggestReassignment(s, ROLE_LABELS[field], field, dl, activePeople(), activeStructures(), projectsById);
   openModal({
     body: `<h3>Who can take "${esc(s.name)}"?</h3><p class="sub">${esc(ROLE_LABELS[field])}, due ${fmtDate(dl)}.</p>
     ${list.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Person</th><th>Current load</th><th>Slack if they take it</th><th></th></tr></thead><tbody>
@@ -1578,12 +1755,60 @@ window.__reassign = async (sid, field, pid) => {
   render();
 };
 
+/* ---------------- bulk assign ---------------- */
+const BULK_ROLES = [
+  ["engineerId", "Engineer (calc)", "Engineer"],
+  ["calcReviewerId", "Calc reviewer", null],
+  ["designerId", "Designer (drawing)", "Designer"],
+  ["drawQ2ReviewerId", "Drawing Q2 reviewer", null],
+  ["drawQ3ReviewerId", "Drawing Q3 reviewer", null],
+  ["drawQ4ReviewerId", "Drawing Q4 reviewer", null]
+];
+window.__bulkAssign = (projectId) => {
+  const list = structuresOf(projectId);
+  if (!list.length) { openModal(`<h3>No structures yet</h3><p class="sub">Add structures to this project first.</p><div class="acts"><button class="btn btn-s" onclick="window.__closeModal()">Close</button></div>`); return; }
+  openModal({
+    wide: true,
+    body: `<h3>Bulk assign</h3><p class="sub">Pick a role and a person, choose the structures, then apply.</p>
+    <div class="f2">
+      <div class="f"><label>Role</label><select id="bulk-role">${opts(BULK_ROLES.map(r => ({ v: r[0], l: r[1] })), "", "v", "l")}</select></div>
+      <div class="f"><label>Assign to</label><select id="bulk-person">${opts(activePeople(), "", "id", "name", "— choose —")}</select></div>
+    </div>
+    <div class="row" style="margin-bottom:8px;gap:14px">
+      <label class="toggle-row"><input type="checkbox" id="bulk-all" onchange="document.querySelectorAll('.bulk-chk').forEach(c=>c.checked=this.checked)" /> Select all</label>
+      <span class="tiny muted">${list.length} structure${list.length === 1 ? "" : "s"}</span>
+    </div>
+    <div class="picklist">${list.map(s => `<div class="pickrow"><input type="checkbox" class="bulk-chk" value="${s.id}" />
+      <span>${esc(s.name)}</span><span class="tiny muted" style="margin-left:auto">${esc(s.phase)}%</span></div>`).join("")}</div>
+    <div class="acts"><button class="btn btn-s" onclick="window.__closeModal()">Cancel</button>
+      <button class="btn btn-p" id="bulk-apply">Apply</button></div>`
+  }, () => {
+    el("bulk-role").onchange = () => {
+      const role = el("bulk-role").value;
+      const meta = BULK_ROLES.find(r => r[0] === role);
+      const pool = meta && meta[2] ? activePeople().filter(p => (p.roles || []).includes(meta[2])) : activePeople();
+      el("bulk-person").innerHTML = opts(pool, "", "id", "name", "— choose —");
+    };
+    el("bulk-apply").onclick = async () => {
+      const role = val("bulk-role"), person = val("bulk-person");
+      const ids = [...document.querySelectorAll(".bulk-chk:checked")].map(c => c.value);
+      if (!role || !person) { alert("Pick a role and a person."); return; }
+      if (!ids.length) { alert("Select at least one structure."); return; }
+      closeModal();
+      await Promise.all(ids.map(id => updateStructure(id, { [role]: person }, "bulk reassigned")));
+      render();
+      toast(`Assigned ${ids.length} structure${ids.length === 1 ? "" : "s"} to ${personName(person)}`);
+    };
+  });
+};
+
 window.__openProject = (id) => { view.projectId = id; view.tab = "detail"; render(); window.scrollTo(0, 0); };
 window.__go = (tab) => { view.tab = tab; render(); window.scrollTo(0, 0); };
+window.__toggleShowCompleted = (v) => { view.showCompleted = v; render(); };
 
 /* ---------------- render ---------------- */
 function render() {
-  const tabs = [["insights", "Insights"], ["projects", "Projects"], ["mywork", "My work"], ["team", "Team"]];
+  const tabs = [["insights", "Insights"], ["projects", "Projects"], ["mywork", "My work"], ["activity", "Activity"], ["team", "Team"]];
   el("tabs").innerHTML = tabs.map(([k, l]) =>
     `<button class="${view.tab === k || (k === "projects" && view.tab === "detail") ? "on" : ""}" onclick="window.__go('${k}')">${l}</button>`).join("");
   el("who-name").textContent = state.me || "Set your name";
@@ -1593,6 +1818,7 @@ function render() {
   else if (view.tab === "projects") html = renderProjects();
   else if (view.tab === "detail") html = renderDetail();
   else if (view.tab === "mywork") html = renderMyWork();
+  else if (view.tab === "activity") html = renderActivity();
   else if (view.tab === "team") html = renderTeam();
   el("main").innerHTML = html;
 }
