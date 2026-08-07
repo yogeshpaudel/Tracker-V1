@@ -3,10 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Civil Project Tracker</title>
+<title>Civil Project Tracker — Enhanced</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Chart.js for Gantt / timeline visualizations -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<!-- jsPDF for report export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root {
   --ink: #16191d; --ink-2: #5b6169; --ink-3: #8b9199; --ink-4: #b3b8be;
@@ -17,6 +21,7 @@
   --warn: #a86a08; --warn-bg: #fdf3e2;
   --bad: #bc3126; --bad-bg: #fceceb;
   --grey: #6b7178; --grey-bg: #f1f2f4;
+  --purple: #7a3fb5; --purple-bg: #f3eafa;
   --r: 9px;
   --sh: 0 1px 2px rgba(16,19,23,.05), 0 1px 1px rgba(16,19,23,.03);
   --sh-2: 0 8px 26px rgba(16,19,23,.1), 0 2px 7px rgba(16,19,23,.05);
@@ -40,10 +45,10 @@ header.top {
 .mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); color: #fff;
         display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
 .brand h1 { font-size: 14.5px; }
-nav.tabs { display: flex; gap: 2px; margin-left: 8px; }
+nav.tabs { display: flex; gap: 2px; margin-left: 8px; flex-wrap: wrap; }
 nav.tabs button {
   border: none; background: none; font: inherit; font-size: 13.5px; color: var(--ink-2);
-  padding: 7px 12px; border-radius: 7px; cursor: pointer; font-weight: 500;
+  padding: 7px 12px; border-radius: 7px; cursor: pointer; font-weight: 500; white-space: nowrap;
 }
 nav.tabs button:hover { background: var(--line-2); color: var(--ink); }
 nav.tabs button.on { background: var(--ink); color: #fff; }
@@ -106,6 +111,7 @@ table.tbl tbody tr:hover { background: #fafbfc; }
 .pill-warn { background: var(--warn-bg); color: var(--warn); }
 .pill-bad { background: var(--bad-bg); color: var(--bad); }
 .pill-grey { background: var(--grey-bg); color: var(--grey); }
+.pill-purple { background: var(--purple-bg); color: var(--purple); }
 
 .bar { height: 6px; background: var(--line); border-radius: 4px; overflow: hidden; }
 .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 4px;
@@ -165,6 +171,7 @@ table.tbl tbody tr:hover { background: #fafbfc; }
 .f input:focus, .f select:focus, .f textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
 .f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
 .f3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 11px; }
+.f4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 11px; }
 .acts { display: flex; gap: 9px; justify-content: flex-end; margin-top: 17px; }
 .box { background: var(--page); border-radius: 9px; padding: 12px 13px; margin-bottom: 12px; }
 
@@ -221,7 +228,7 @@ table.tbl tbody tr:hover { background: #fafbfc; }
 .steptoggle { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--line); background: #fff;
               cursor: pointer; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; }
 .steptoggle.on { background: var(--ok); border-color: var(--ok); }
-.steptoggle.on::after { content: "✓"; }
+.steptoggle.on::after { content: "\2713"; }
 
 .rolebox { border: 1px solid var(--line); border-radius: 10px; padding: 13px 14px; margin-bottom: 12px; }
 .rolebox .rb-head { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase;
@@ -268,6 +275,85 @@ select:disabled { background: var(--line-2); color: var(--ink-3); }
 .toggle-row { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-2); cursor: pointer; user-select: none; }
 .toggle-row input { width: auto; }
 
+/* ===== NEW: Gantt chart ===== */
+.gantt-container { background: #fff; border: 1px solid var(--line); border-radius: 11px; box-shadow: var(--sh); padding: 14px; }
+.gantt-bar-row { display: flex; align-items: center; margin-bottom: 6px; }
+.gantt-label { width: 160px; flex: none; font-size: 12px; font-weight: 500; padding-right: 10px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gantt-track { flex: 1; height: 22px; background: var(--line-2); border-radius: 4px; position: relative; }
+.gantt-fill { height: 100%; border-radius: 4px; position: absolute; top: 0; transition: left .3s, width .3s; }
+.gantt-fill.phase { background: var(--accent); opacity: .75; }
+.gantt-fill.phase.done { background: var(--ok); opacity: 1; }
+.gantt-fill.phase.at-risk { background: var(--bad); opacity: 1; }
+.gantt-fill.phase.watch { background: var(--warn); opacity: 1; }
+.gantt-marker { position: absolute; top: -4px; width: 2px; height: 30px; background: var(--ink); z-index: 2; }
+.gantt-marker::after { content: "Today"; position: absolute; top: -16px; left: -16px; font-size: 9.5px; color: var(--ink-3); font-weight: 600; }
+.gantt-legend { display: flex; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
+.gantt-legend span { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-3); }
+.gantt-legend span i { width: 12px; height: 8px; border-radius: 2px; display: inline-block; }
+
+/* ===== NEW: Financials ===== */
+
+/* ===== NEW: File attachments ===== */
+
+/* ===== NEW: Client collaboration ===== */
+.client-status-banner { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 9px; padding: 12px 14px; margin-bottom: 12px; }
+.client-status-banner .csb-title { font-weight: 600; font-size: 13px; color: var(--accent); }
+.client-status-banner .csb-detail { font-size: 12px; color: var(--ink-2); margin-top: 3px; }
+
+/* ===== NEW: Filters ===== */
+.filter-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; padding: 8px 12px; background: #fff; border: 1px solid var(--line); border-radius: 9px; }
+.filter-bar select, .filter-bar input { font: inherit; font-size: 12.5px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.filter-bar select:focus, .filter-bar input:focus { outline: none; border-color: var(--accent); }
+.filter-tag { display: inline-flex; align-items: center; gap: 3px; background: var(--accent-bg); color: var(--accent); font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 12px; }
+.filter-tag .ft-x { cursor: pointer; margin-left: 2px; font-weight: 700; }
+
+/* ===== NEW: Export/report ===== */
+.report-preview { background: #fff; border: 1px solid var(--line); border-radius: 9px; padding: 20px 24px; margin-top: 10px; }
+.report-preview h2 { font-size: 18px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.report-preview .rp-section { margin-bottom: 16px; }
+.report-preview .rp-section h3 { font-size: 14px; margin-bottom: 6px; color: var(--accent); }
+.report-preview .rp-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.report-preview .rp-table th { background: var(--line-2); padding: 6px 8px; text-align: left; font-weight: 600; font-size: 11px; }
+.report-preview .rp-table td { padding: 5px 8px; border-bottom: 1px solid var(--line-2); }
+
+/* ===== NEW: Mobile responsive ===== */
+@media (max-width: 900px) {
+  header.top { padding: 0 12px; gap: 10px; height: 52px; }
+  .brand h1 { font-size: 13px; }
+  nav.tabs button { font-size: 12px; padding: 6px 8px; }
+  main { padding: 14px 12px 60px; }
+  .pboard { grid-template-columns: 1fr; }
+  .gridtbl { display: block; overflow-x: auto; }
+  .gridtbl .namecol { min-width: 140px; }
+  .kpi .val { font-size: 20px; }
+  .tbl-wrap { overflow-x: auto; }
+  .filter-bar { gap: 5px; }
+}
+@media (max-width: 600px) {
+  header.top { flex-wrap: wrap; height: auto; padding: 8px 12px; }
+  .who { order: 3; }
+  nav.tabs { order: 3; width: 100%; justify-content: flex-start; overflow-x: auto; }
+  .pboard { grid-template-columns: 1fr; }
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+  .f2, .f3, .f4 { grid-template-columns: 1fr; }
+  .gantt-label { width: 100px; font-size: 11px; }
+  .modal { width: 95vw; padding: 16px; }
+  .modal.wide { width: 95vw; }
+  .rolebox { padding: 10px; }
+}
+
+/* ===== NEW: Notification bell ===== */
+.notif-bell { position: relative; cursor: pointer; padding: 5px 8px; border-radius: 7px; }
+.notif-bell:hover { background: var(--line-2); }
+.notif-badge { position: absolute; top: 0; right: 0; width: 8px; height: 8px; background: var(--bad); border-radius: 50%; border: 2px solid #fff; }
+.notif-dropdown { position: absolute; top: 42px; right: 0; width: 320px; max-height: 400px; overflow: auto; background: #fff; border: 1px solid var(--line); border-radius: 11px; box-shadow: var(--sh-2); display: none; z-index: 40; }
+.notif-dropdown.open { display: block; }
+.notif-item { display: flex; gap: 10px; padding: 10px 13px; border-bottom: 1px solid var(--line-2); font-size: 12.5px; }
+.notif-item:last-child { border-bottom: none; }
+.notif-item.unread { background: var(--accent-bg); }
+.notif-item .ni-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-top: 4px; flex: none; }
+.notif-item .ni-text { flex: 1; }
+.notif-item .ni-time { font-size: 11px; color: var(--ink-3); white-space: nowrap; }
 
 </style>
 </head>
@@ -277,11 +363,16 @@ select:disabled { background: var(--line-2); color: var(--ink-3); }
     <div class="mark">C</div>
     <div>
       <h1>Civil Project Tracker</h1>
-      <div class="live" id="live"><span class="dot"></span><span id="live-text">Connecting…</span></div>
+      <div class="live" id="live"><span class="dot"></span><span id="live-text">Connecting\u2026</span></div>
     </div>
   </div>
   <nav class="tabs" id="tabs"></nav>
   <div class="spacer"></div>
+  <div class="notif-bell" id="notif-bell" onclick="window.__toggleNotifs()">
+    <span style="font-size:16px">&#128276;</span>
+    <div class="notif-badge" id="notif-badge" style="display:none"></div>
+    <div class="notif-dropdown" id="notif-dropdown"></div>
+  </div>
   <div class="who" id="who"><span id="who-name">Set your name</span></div>
 </header>
 
@@ -295,14 +386,13 @@ select:disabled { background: var(--line-2); color: var(--ink-3); }
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
-  serverTimestamp, writeBatch
+  serverTimestamp, writeBatch, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-// ===================== v2 engine =====================
+// ===================== v2 engine (enhanced) =====================
 const PHASES = ["30", "60", "90", "IFC"];
 const PHASE_TARGET = { "30": 30, "60": 60, "90": 90, "IFC": 100 };
 
 // ---- Calc: 6 non-sequential steps. Weights sum to 100. ----
-// 5 of them (all but "review") are the engineer's own authored work.
 const CALC_STEPS = [
   { key: "criteria", label: "Design criteria finalized", weight: 5, owner: "engineer" },
   { key: "loads", label: "Load calculation / development", weight: 25, owner: "engineer" },
@@ -314,12 +404,10 @@ const CALC_STEPS = [
 const CALC_ENGINEER_WEIGHT = CALC_STEPS.filter(s => s.owner === "engineer").reduce((a, s) => a + s.weight, 0); // 90
 
 const DRAW_LABEL = ["Not started", "Q1 Self check", "Q2 Engineer check", "Q3 Independent review", "Q4 PE review"];
-const REVIEW_COST_DAYS = 0.5; // fixed 4hr cost for any review step, calc or drawing
-
+const REVIEW_COST_DAYS = 0.5;
 const KA_STATUS = ["Waiting for information", "In progress", "Submitted", "On hold"];
 const CLIENT_STATUS = ["Not submitted", "Submitted for review", "Client comments received"];
 const BLOCK_REASONS = ["Waiting on client", "Waiting on reviewer", "Waiting on info", "Waiting on other discipline"];
-
 const CALC_WEIGHT_DEFAULT = 0.6;
 const STALE_WORKING_DAYS = 3;
 
@@ -332,9 +420,7 @@ function calcEngineerDoneWeight(s) {
   const steps = (s && s.calcSteps) || {};
   return CALC_STEPS.filter(st => st.owner === "engineer" && steps[st.key]).reduce((a, st) => a + st.weight, 0);
 }
-function calcReviewDone(s) {
-  return !!((s && s.calcSteps) || {}).review;
-}
+function calcReviewDone(s) { return !!((s && s.calcSteps) || {}).review; }
 
 // ---------------- drawing progress ----------------
 function drawProgress(s) {
@@ -351,7 +437,6 @@ function phaseStructureProgress(structures, calcWeight = CALC_WEIGHT_DEFAULT) {
   if (!structures.length) return 0;
   return structures.reduce((a, s) => a + structureProgress(s, calcWeight), 0) / structures.length;
 }
-// A phase whose K&A status is Submitted counts as 100% for rollup, regardless of structure detail (CL-06).
 function phaseProgress(phase, structures, calcWeight = CALC_WEIGHT_DEFAULT) {
   if (phase && phase.kaStatus === "Submitted") return 100;
   return phaseStructureProgress(structures, calcWeight);
@@ -388,7 +473,6 @@ function projectProgress(project, structuresByPhase, calcWeight = CALC_WEIGHT_DE
   });
   return Math.max(0, Math.min(100, total));
 }
-// Whole project is done once every included phase has been Submitted.
 function projectComplete(project) {
   const inc = includedPhases(project);
   if (!inc.length) return false;
@@ -422,13 +506,11 @@ function todayISO() {
 }
 
 // ---------------- per-person remaining effort ----------------
-// Engineer's own remaining calc work, normalized against the 90% they own (review excluded).
 function engineerRemainingDays(s) {
   const est = Number(s.calcEstDays) || 0;
-  const done = calcEngineerDoneWeight(s); // 0..90
+  const done = calcEngineerDoneWeight(s);
   return est * (1 - done / CALC_ENGINEER_WEIGHT);
 }
-// Designer's own remaining drawing work: done once Q1 (self-check) is reached.
 function designerRemainingDays(s) {
   const est = Number(s.drawEstDays) || 0;
   return (Number(s.drawQ) || 0) >= 1 ? 0 : est;
@@ -438,7 +520,6 @@ function drawQ2RemainingDays(s) { return (Number(s.drawQ) || 0) >= 2 ? 0 : REVIE
 function drawQ3RemainingDays(s) { return (Number(s.drawQ) || 0) >= 3 ? 0 : REVIEW_COST_DAYS; }
 function drawQ4RemainingDays(s) { return (Number(s.drawQ) || 0) >= 4 ? 0 : REVIEW_COST_DAYS; }
 
-// Returns [{role, days}] for every role personId holds on structure s, with days > 0 only when work remains.
 function personRolesOnStructure(s, personId) {
   const out = [];
   if (!personId) return out;
@@ -480,7 +561,6 @@ function availabilityFactor(person, from, to) {
   }
   return totalDays === 0 ? 1 : weighted / totalDays;
 }
-// Slack for a specific person's specific role-load on a structure, against a deadline.
 function slackDaysFor(remainingDays, deadline, person, today = new Date()) {
   const dl = parseDate(deadline);
   if (!dl) return null;
@@ -524,7 +604,6 @@ function activePhase(project) {
   return inc.length ? inc[inc.length - 1] : null;
 }
 function daysWaitingOnClient(phase, today = new Date()) {
-  // Only meaningful once submitted and client hasn't responded, and not IFC (CL-07: IFC has no client tracking).
   if (!phase || phase.kaStatus !== "Submitted") return null;
   if (phase.clientStatus !== "Submitted for review") return null;
   const d = parseDate(phase.submittedDate);
@@ -574,10 +653,9 @@ function projectRisk(project, structuresByPhase, today = new Date()) {
 }
 
 // ---------------- reassignment suggestion ----------------
-// Suggests other people who could take over a specific ROLE (engineer/designer/reviewer) on a structure.
 function suggestReassignment(structure, role, roleField, deadline, people, allStructures, projectsById, today = new Date()) {
   const roleWantsList = { engineerId: "Engineer", designerId: "Designer" };
-  const wantRole = roleWantsList[roleField]; // null for reviewer fields -> anyone with Engineer or Lead role can review
+  const wantRole = roleWantsList[roleField];
   const candidates = people.filter(p => p.id !== structure[roleField] &&
     (wantRole ? (p.roles || []).includes(wantRole) : true));
 
@@ -594,9 +672,8 @@ function suggestReassignment(structure, role, roleField, deadline, people, allSt
     let projectedRemaining;
     if (roleField === "engineerId") projectedRemaining = engineerRemainingDays(structure);
     else if (roleField === "designerId") projectedRemaining = designerRemainingDays(structure);
-    else if (roleField === "calcReviewerId") projectedRemaining = REVIEW_COST_DAYS;
     else projectedRemaining = REVIEW_COST_DAYS;
-    const projected = slackDaysFor(projectedRemaining, deadline, p, today);
+    const projected = worst == null ? null : worst - projectedRemaining;
     return { person: p, currentLoad: theirLoad.length, worstSlack: worst, projectedSlack: projected };
   }).filter(c => c.projectedSlack != null && c.projectedSlack > 0)
     .sort((a, b) => b.projectedSlack - a.projectedSlack);
@@ -605,12 +682,12 @@ function suggestReassignment(structure, role, roleField, deadline, people, allSt
 // ---------------- formatting ----------------
 function fmtDate(d) {
   const dt = parseDate(d);
-  if (!dt) return "—";
+  if (!dt) return "\u2014";
   return dt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 function fmtShort(d) {
   const dt = parseDate(d);
-  if (!dt) return "—";
+  if (!dt) return "\u2014";
   return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 function round(n, dp = 0) {
@@ -618,8 +695,7 @@ function round(n, dp = 0) {
   return Math.round((Number(n) || 0) * f) / f;
 }
 
-// ---------------- phase status transitions (CL-01/02/03) ----------------
-// Call whenever a phase's kaStatus is changed by the user, to auto-stamp dates & client status.
+// ---------------- phase status transitions ----------------
 function applyKaStatusChange(phase, newStatus, today = todayISO()) {
   const p = { ...phase, kaStatus: newStatus };
   if (newStatus === "In progress" && !p.startDate) p.startDate = today;
@@ -627,9 +703,10 @@ function applyKaStatusChange(phase, newStatus, today = todayISO()) {
     if (!p.submittedDate) p.submittedDate = today;
     if (!p.originalDeadline) p.originalDeadline = p.deadline;
     p.clientStatus = "Submitted for review";
+    // Trigger notification
+    triggerNotification("Phase submitted", `${p.name || ""} phase set to Submitted`);
   }
   if (newStatus !== "Submitted" && p.clientStatus && p.clientStatus !== "Not submitted" && newStatus !== "On hold") {
-    // moved back out of Submitted (e.g. corrected) -> client status resets
     p.clientStatus = "Not submitted";
   }
   return p;
@@ -647,15 +724,17 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// v2 collections, distinct from v1's, so nothing in the trial gets clobbered.
-const COLLECTIONS = ["projectsV2", "structuresV2", "peopleV2", "structureTypesV2", "commentsV2", "activityV2"];
+// v2 collections
+const COLLECTIONS = ["projectsV2", "structuresV2", "peopleV2", "structureTypesV2", "commentsV2", "activityV2", "notificationsV2"];
 const KEY_MAP = {
   projectsV2: "projects", structuresV2: "structures", peopleV2: "people",
-  structureTypesV2: "structureTypes", commentsV2: "comments", activityV2: "activity"
+  structureTypesV2: "structureTypes", commentsV2: "comments", activityV2: "activity",
+  notificationsV2: "notifications"
 };
 
 const state = {
   projects: [], structures: [], people: [], structureTypes: [], comments: [], activity: [],
+  notifications: [],
   ready: {}, me: null
 };
 
@@ -745,7 +824,7 @@ async function duplicateStructure(id, overrides) {
 }
 
 async function addPerson(data) {
-  const ref = await addDoc(collection(db, "peopleV2"), { availability: [], ...data });
+  const ref = await addDoc(collection(db, "peopleV2"), { availability: [], rate: 120, ...data });
   await log("Added person", data.name);
   return ref.id;
 }
@@ -768,6 +847,50 @@ async function addComment(data) {
   return ref.id;
 }
 async function deleteComment(id) { await deleteDoc(doc(db, "commentsV2", id)); }
+
+// ---- Notifications (stored in Firestore, read-state tracked per person) ----
+async function triggerNotification(title, detail, forNames) {
+  try {
+    await addDoc(collection(db, "notificationsV2"), {
+      title, detail, who: state.me || "Unknown",
+      for: (forNames && forNames.length) ? forNames.filter(Boolean) : [], // empty = visible to everyone
+      at: serverTimestamp(), atISO: new Date().toISOString(),
+      readBy: []
+    });
+  } catch (e) { /* best-effort */ }
+}
+async function markNotifRead(id) {
+  const n = state.notifications.find(x => x.id === id);
+  if (!n || !state.me) return;
+  const readBy = Array.isArray(n.readBy) ? n.readBy.slice() : [];
+  if (!readBy.includes(state.me)) readBy.push(state.me);
+  await updateDoc(doc(db, "notificationsV2", id), { readBy });
+}
+// Notifications relevant to the current user: broadcast (no "for" list) or specifically targeted at them.
+function myNotifications() {
+  return state.notifications.filter(n => !n.for || !n.for.length || n.for.includes(state.me));
+}
+function unreadNotifs() {
+  return myNotifications().filter(n => !Array.isArray(n.readBy) || !n.readBy.includes(state.me));
+}
+
+// Notify a person when they're newly given a role on a structure (not when removed, only when added/changed).
+const ROLE_FIELD_LABELS = {
+  engineerId: "engineer (calc)", calcReviewerId: "calc reviewer", designerId: "designer (drawing)",
+  drawQ2ReviewerId: "drawing Q2 reviewer", drawQ3ReviewerId: "drawing Q3 reviewer", drawQ4ReviewerId: "drawing Q4 reviewer"
+};
+function notifyReassignments(oldStructure, newData, structureName) {
+  Object.keys(ROLE_FIELD_LABELS).forEach(field => {
+    const newId = newData[field];
+    if (!newId) return;
+    const oldId = oldStructure ? oldStructure[field] : null;
+    if (newId === oldId) return;
+    const name = personName(newId);
+    if (name && name !== state.me) {
+      triggerNotification("You've been assigned", `${structureName} \u2014 ${ROLE_FIELD_LABELS[field]}`, [name]);
+    }
+  });
+}
 
 const SEED_TYPES = [
   { name: "Dead-end structure", calcEstDays: 4, drawEstDays: 3 },
@@ -798,7 +921,8 @@ function newProjectShell(name, client) {
     included: true, kaStatus: "Waiting for information", clientStatus: "Not submitted",
     deadline: "", startDate: "", submittedDate: "", originalDeadline: ""
   });
-  return { name, client, managerId: "", leadId: "", calcWeight: 0.6, phases: { "30": mk(), "60": mk(), "90": mk(), "IFC": mk() } };
+  return { name, client, managerId: "", leadId: "", calcWeight: 0.6,
+    phases: { "30": mk(), "60": mk(), "90": mk(), "IFC": mk() } };
 }
 
 function esc(s) {
@@ -914,12 +1038,11 @@ function toast(msg, actionLabel, actionFn, ms) {
   }
 }
 
-
-
-const view = { tab: "insights", projectId: null, prevRisk: {}, showCompleted: false, bulkMode: false };
+const view = { tab: "insights", projectId: null, prevRisk: {}, showCompleted: false, bulkMode: false,
+  filters: {}, activityFilter: "", ganttChart: null, drawBuckets: null };
 window.__closeModal = closeModal;
 
-/* ---------------- identity: in-memory only, asked once per page load (CL-04) ---------------- */
+/* ---------------- identity ---------------- */
 function bootIdentity() {
   if (!activePeople().length) { render(); return; }
   showSessionPicker();
@@ -929,9 +1052,9 @@ function showSessionPicker() {
   const people = activePeople().slice().sort((a, b) => a.name.localeCompare(b.name));
   bg.innerHTML = `<div class="session-card">
     <h2>Who's viewing?</h2>
-    <p>Pick your name for this visit — it drives "My work" and note attribution.</p>
-    <div class="f"><select id="sess-pick">${opts(people, "", "name", "name", "Select your name…")}</select></div>
-    <div class="f"><input id="sess-type" placeholder="…or type a name" /></div>
+    <p>Pick your name for this visit \u2014 it drives "My work" and note attribution.</p>
+    <div class="f"><select id="sess-pick">${opts(people, "", "name", "name", "Select your name\u2026")}</select></div>
+    <div class="f"><input id="sess-type" placeholder="\u2026or type a name" /></div>
     <button class="btn btn-p" id="sess-go" style="width:100%">Continue</button>
   </div>`;
   bg.style.display = "flex";
@@ -950,8 +1073,6 @@ const byId = (list) => Object.fromEntries(list.map(o => [o.id, o]));
 function activeProjects() { return state.projects.filter(p => !p.deleted); }
 function activeStructures() { return state.structures.filter(s => !s.deleted); }
 function activePeople() { return state.people.filter(p => !p.deleted); }
-// Name lookups always search the FULL (unfiltered) list, so a structure assigned to someone
-// who's since been removed from the team still shows their name instead of going blank.
 function personName(id) { const p = state.people.find(x => x.id === id); return p ? p.name : ""; }
 function structuresOf(projectId) { return state.structures.filter(s => s.projectId === projectId && !s.deleted); }
 function byPhase(list) {
@@ -959,7 +1080,7 @@ function byPhase(list) {
   list.forEach(s => { if (!m[s.phase]) m[s.phase] = []; m[s.phase].push(s); });
   return m;
 }
-function projProgress(p) { return projectProgress(p, byPhase(structuresOf(p.id)), p.calcWeight || 0.6); }
+function projProgress(p) { return projectProgress(p, byPhase(structuresOf(p.id))); }
 function deadlineFor(s) {
   const p = state.projects.find(x => x.id === s.projectId);
   return p && p.phases && p.phases[s.phase] ? p.phases[s.phase].deadline : null;
@@ -974,7 +1095,6 @@ function spareText(days) {
 function kaKind(k) { return k === "Submitted" ? "ok" : k === "On hold" ? "bad" : k === "Waiting for information" ? "warn" : "accent"; }
 function clientKind(c) { return c === "Client comments received" ? "ok" : c === "Submitted for review" ? "accent" : "grey"; }
 
-// Every (structure, role) pair the given person currently holds, across every project.
 function myAssignments(personId) {
   if (!personId) return [];
   const out = [];
@@ -985,6 +1105,35 @@ function myAssignments(personId) {
   });
   return out;
 }
+
+/* ---------------- NOTIFICATIONS ---------------- */
+window.__toggleNotifs = () => {
+  const dd = el("notif-dropdown");
+  dd.classList.toggle("open");
+  if (dd.classList.contains("open")) renderNotifDropdown();
+};
+function renderNotifDropdown() {
+  const dd = el("notif-dropdown");
+  const items = myNotifications().slice().sort((a, b) => String(b.atISO || "").localeCompare(String(a.atISO || ""))).slice(0, 20);
+  if (!items.length) { dd.innerHTML = `<div style="padding:16px;text-align:center;color:var(--ink-3);font-size:13px">No notifications</div>`; return; }
+  dd.innerHTML = items.map(n => {
+    const isUnread = !Array.isArray(n.readBy) || !n.readBy.includes(state.me);
+    return `
+    <div class="notif-item ${isUnread ? "unread" : ""}" onclick="window.__readNotif('${n.id}')">
+      <div class="ni-dot"></div>
+      <div class="ni-text"><strong>${esc(n.title)}</strong><br/>${esc(n.detail || "")}</div>
+      <div class="ni-time">${fmtShort(n.atISO)}</div>
+    </div>`;
+  }).join("");
+}
+window.__readNotif = async (id) => { await markNotifRead(id); render(); renderNotifDropdown(); };
+function updateNotifBadge() {
+  const badge = el("notif-badge");
+  if (!badge) return;
+  const count = unreadNotifs().length;
+  badge.style.display = count > 0 ? "block" : "none";
+}
+onChange(() => { updateNotifBadge(); });
 
 /* ---------------- INSIGHTS ---------------- */
 function renderInsights() {
@@ -999,13 +1148,12 @@ function renderInsights() {
   const awaiting = [];
   P.forEach(p => PHASES.forEach(ph => {
     const phase = p.phases && p.phases[ph];
-    if (!phase || ph === "IFC") return; // CL-07: no client tracking on IFC
+    if (!phase || ph === "IFC") return;
     const d = daysWaitingOnClient(phase, today);
     if (d != null) awaiting.push({ p, ph, days: d });
   }));
   awaiting.sort((a, b) => b.days - a.days);
 
-  // Negative-slack rollup: one row per (structure, role) that's underwater.
   const negSlack = [];
   ST.filter(s => isActionable(s)).forEach(s => {
     const dl = deadlineFor(s);
@@ -1023,8 +1171,6 @@ function renderInsights() {
   });
   negSlack.sort((a, b) => a.sl - b.sl);
 
-  // Drawing pipeline: counts stop only once the WHOLE project wraps up, not when one structure finishes -
-  // a finished drawing still shows, just moves into the "Completed" bucket instead of vanishing.
   const drawBuckets = { notstarted: [], q1: [], q2: [], q3: [], q4: [], completed: [] };
   activeStructures().forEach(s => {
     const proj = state.projects.find(x => x.id === s.projectId);
@@ -1054,13 +1200,62 @@ function renderInsights() {
     ${kpi("Awaiting client", awaiting.length, awaiting.length ? "warn" : "", awaiting.length ? `oldest ${awaiting[0].days} wd` : "none pending")}
   </div>`;
 
+  // ---- Gantt Chart ----
+  h += `<div class="sec-title">Schedule — Gantt timeline</div>`;
+  h += `<div class="gantt-container" id="gantt-container">`;
+  const todayStr = todayISO();
+  const allPhases = [];
+  active.forEach(p => {
+    includedPhases(p).forEach(ph => {
+      const phase = p.phases[ph];
+      if (phase.startDate || phase.deadline) {
+        allPhases.push({ project: p.name, phase: ph + "%", start: phase.startDate, end: phase.deadline,
+          progress: phaseProgress(phase, structuresOf(p.id) || [], p.calcWeight || 0.6),
+          pace: expectedProgress(phase, today) != null ? paceIndex(phaseProgress(phase, structuresOf(p.id) || [], p.calcWeight || 0.6), expectedProgress(phase, today)) : null
+        });
+      }
+    });
+  });
+  if (allPhases.length) {
+    const dates = [];
+    allPhases.forEach(ap => { if (ap.start) dates.push(new Date(ap.start)); if (ap.end) dates.push(new Date(ap.end)); });
+    const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+    const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+    const range = maxDate - minDate || 86400000;
+    const todayOffset = (today - minDate) / range;
+
+    h += allPhases.map(ap => {
+      const start = ap.start ? (new Date(ap.start) - minDate) / range * 100 : 0;
+      const end = ap.end ? Math.min(100, (new Date(ap.end) - minDate) / range * 100) : 100;
+      const width = Math.max(2, end - start);
+      const riskClass = ap.pace != null && ap.pace < 0.8 ? "at-risk" : ap.pace != null && ap.pace < 0.95 ? "watch" : ap.progress >= 100 ? "done" : "phase";
+      return `<div class="gantt-bar-row">
+        <div class="gantt-label" title="${esc(ap.project)}">${esc(ap.project)} \u2014 ${esc(ap.phase)}</div>
+        <div class="gantt-track">
+          <div class="gantt-fill ${riskClass}" style="left:${start}%;width:${width}%"></div>
+          <div class="gantt-marker" style="left:${Math.max(0,Math.min(100,todayOffset*100))}%"></div>
+        </div>
+      </div>`;
+    }).join("");
+    h += `<div class="gantt-legend">
+      <span><i style="background:var(--accent);opacity:.75"></i> Active</span>
+      <span><i style="background:var(--ok)"></i> Complete</span>
+      <span><i style="background:var(--warn)"></i> Watch (pace 80\u201394%)</span>
+      <span><i style="background:var(--bad)"></i> At risk (pace &lt;80%)</span>
+      <span><i style="background:var(--ink)"></i> Today</span>
+    </div>`;
+  } else {
+    h += `<div class="small muted" style="padding:14px 0">No phases with start/end dates yet. Add dates in project settings.</div>`;
+  }
+  h += `</div>`;
+
   if (negSlack.length) {
-    h += `<div class="sec-title">Overload — needs a decision</div><div class="tbl-wrap"><table class="tbl">
+    h += `<div class="sec-title">Overload \u2014 needs a decision</div><div class="tbl-wrap"><table class="tbl">
       <thead><tr><th>Structure</th><th>Project / phase</th><th>Role</th><th>Person</th><th>Time to spare</th><th></th></tr></thead><tbody>`;
     negSlack.slice(0, 12).forEach(({ s, pid, roleLabel, field, sl }) => {
       const p = state.projects.find(x => x.id === s.projectId);
       h += `<tr><td><strong>${esc(s.name)}</strong></td>
-        <td class="small muted">${esc(p ? p.name : "?")} · ${esc(s.phase)}%</td>
+        <td class="small muted">${esc(p ? p.name : "?")} \u00b7 ${esc(s.phase)}%</td>
         <td class="small">${esc(roleLabel)}</td>
         <td>${avatar(personName(pid))} <span class="small">${esc(personName(pid))}</span></td>
         <td>${pill(spareText(sl), "bad")}</td>
@@ -1080,13 +1275,13 @@ function renderInsights() {
       const statusPill = r.score >= 45 ? pill("At risk", "bad") : r.score >= 25 ? pill("Watch", "warn") : pill("On track", "ok");
       h += `<div class="pcard" onclick="window.__openProject('${p.id}')">
         <div class="between" style="align-items:flex-start">
-          <div><div class="tiny muted" style="text-transform:uppercase;letter-spacing:.04em">${esc(p.client || "—")}</div>
+          <div><div class="tiny muted" style="text-transform:uppercase;letter-spacing:.04em">${esc(p.client || "\u2014")}</div>
             <div style="font-weight:600;font-size:15px;margin-top:2px">${esc(p.name)}</div></div>
           ${statusPill}
         </div>
         <div style="margin:12px 0 4px">${bar(pp)}</div>
         <div class="between tiny muted"><span>${round(pp)}% overall</span>
-          <span>${r.phase ? r.phase + "% phase" : ""}${ph && ph.deadline ? " · due " + fmtShort(ph.deadline) : ""}</span></div>
+          <span>${r.phase ? r.phase + "% phase" : ""}${ph && ph.deadline ? " \u00b7 due " + fmtShort(ph.deadline) : ""}</span></div>
         ${r.pace != null ? `<div class="tiny muted" style="margin-top:4px">Moving at ${round(r.pace * 100)}% of the speed needed to hit this deadline</div>` : ""}
         ${r.reasons.length ? `<div class="row" style="gap:5px;flex-wrap:wrap;margin-top:9px">${r.reasons.map(x => pill(x, "warn")).join("")}</div>` : ""}
       </div>`;
@@ -1094,8 +1289,8 @@ function renderInsights() {
     h += `</div>`;
   }
 
-  h += `<div class="sec-title">Drawings — where work is sitting</div>
-    <div class="small muted" style="margin:-6px 0 10px">Click a number to see those drawings. A drawing stays visible here — even once finished — until its whole project wraps up.</div>
+  h += `<div class="sec-title">Drawings \u2014 where work is sitting</div>
+    <div class="small muted" style="margin:-6px 0 10px">Click a number to see those drawings. A drawing stays visible here \u2014 even once finished \u2014 until its whole project wraps up.</div>
     <div class="card card-p"><div class="grid" style="grid-template-columns:repeat(6,1fr)">`;
   [["notstarted", "Not started"], ["q1", "Q1"], ["q2", "Q2"], ["q3", "Q3"], ["q4", "Q4"], ["completed", "Completed"]].forEach(([key, lab]) => {
     h += `<div style="cursor:pointer" onclick="window.__showDrawingBucket('${key}')">
@@ -1104,7 +1299,7 @@ function renderInsights() {
   });
   h += `</div></div>`;
 
-  h += `<div class="sec-title">Workload — every role counted</div>`;
+  h += `<div class="sec-title">Workload \u2014 every role counted</div>`;
   const people = activePeople();
   if (!people.length) {
     h += emptyState("No team members yet", "Add your team so workload and available time can be tracked.", `<button class="btn btn-p" onclick="window.__go('team')">Go to Team</button>`);
@@ -1123,7 +1318,7 @@ function renderInsights() {
           <div class="tiny muted" style="margin-left:29px">${esc((p.roles || []).join(", "))}</div></td>
         <td>${mine.length}</td>
         <td class="small">${round(totalDays, 1)} d</td>
-        <td>${worst == null ? '<span class="tiny muted">—</span>' : pill(spareText(worst), spareKind(worst))}</td></tr>`;
+        <td>${worst == null ? '<span class="tiny muted">\u2014</span>' : pill(spareText(worst), spareKind(worst))}</td></tr>`;
     });
     h += `</tbody></table></div>`;
   }
@@ -1137,24 +1332,62 @@ function emptyState(title, msg, action) {
   return `<div class="card"><div class="empty"><h3>${esc(title)}</h3><p>${esc(msg)}</p>${action || ""}</div></div>`;
 }
 
-/* ---------------- PROJECTS BOARD ---------------- */
+/* ---------------- PROJECTS BOARD (with filters) ---------------- */
 function renderProjects() {
   const today = new Date();
   const completedCount = activeProjects().filter(p => projectComplete(p)).length;
-  const list = activeProjects().filter(p => view.showCompleted || !projectComplete(p)).map(p => ({ p, r: projectRisk(p, byPhase(structuresOf(p.id)), today), prog: projProgress(p) }));
+
+  // Apply filters
+  let list = activeProjects().filter(p => view.showCompleted || !projectComplete(p)).map(p => ({ p, r: projectRisk(p, byPhase(structuresOf(p.id)), today), prog: projProgress(p) }));
+
+  // Filter by client
+  if (view.filters.client) list = list.filter(x => x.p.client === view.filters.client);
+  // Filter by manager
+  if (view.filters.manager) list = list.filter(x => x.p.managerId === view.filters.manager);
+  // Filter by risk level
+  if (view.filters.risk) {
+    if (view.filters.risk === "at-risk") list = list.filter(x => x.r.score >= 45);
+    else if (view.filters.risk === "watch") list = list.filter(x => x.r.score >= 25 && x.r.score < 45);
+    else if (view.filters.risk === "on-track") list = list.filter(x => x.r.score < 25);
+  }
+
   list.sort((a, b) => b.r.score - a.r.score);
+
+  // Collect unique clients and managers for filter dropdowns
+  const clients = [...new Set(activeProjects().map(p => p.client).filter(Boolean))].sort();
+  const managers = activePeople().filter(p => (p.roles || []).includes("Manager"));
 
   let h = `<div class="between" style="margin-bottom:16px">
     <div><h2 style="font-size:17px">Projects</h2>
-    <div class="small muted">Ranked by risk — most urgent first</div></div>
+    <div class="small muted">Ranked by risk \u2014 most urgent first</div></div>
     <div class="row">
       ${completedCount ? `<label class="toggle-row"><input type="checkbox" id="show-completed" ${view.showCompleted ? "checked" : ""}
           onchange="window.__toggleShowCompleted(this.checked)" /> Show ${completedCount} completed</label>` : ""}
       <button class="btn btn-p" onclick="window.__newProject()">+ New project</button>
     </div></div>`;
 
+  // Filter bar
+  h += `<div class="filter-bar">
+    <span style="font-size:12px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em">Filters:</span>
+    <select onchange="window.__setFilter('client',this.value)" style="max-width:160px">
+      <option value="">All clients</option>
+      ${clients.map(c => `<option value="${esc(c)}" ${view.filters.client === c ? "selected" : ""}>${esc(c)}</option>`).join("")}
+    </select>
+    <select onchange="window.__setFilter('manager',this.value)" style="max-width:160px">
+      <option value="">All managers</option>
+      ${managers.map(m => `<option value="${m.id}" ${view.filters.manager === m.id ? "selected" : ""}>${esc(m.name)}</option>`).join("")}
+    </select>
+    <select onchange="window.__setFilter('risk',this.value)" style="max-width:130px">
+      <option value="">All risk levels</option>
+      <option value="at-risk" ${view.filters.risk === "at-risk" ? "selected" : ""}>At risk</option>
+      <option value="watch" ${view.filters.risk === "watch" ? "selected" : ""}>Watch</option>
+      <option value="on-track" ${view.filters.risk === "on-track" ? "selected" : ""}>On track</option>
+    </select>
+    ${Object.values(view.filters).some(v => v) ? `<button class="btn btn-s btn-sm" onclick="window.__clearFilters()">Clear</button>` : ""}
+  </div>`;
+
   if (!list.length) return h + emptyState(
-    view.showCompleted ? "No projects yet" : "No active projects",
+    view.showCompleted ? "No projects match filters" : "No active projects",
     view.showCompleted ? "Create your first project to get started." : "Everything's complete, or nothing's been created yet.",
     `<button class="btn btn-p" onclick="window.__newProject()">+ New project</button>`);
 
@@ -1169,7 +1402,7 @@ function renderProjects() {
     const complete = projectComplete(p);
     h += `<div class="pcard ${isNew || moved ? "enter" : ""}" onclick="window.__openProject('${p.id}')">
       <div class="between" style="align-items:flex-start">
-        <div><div class="tiny muted" style="text-transform:uppercase;letter-spacing:.04em">${esc(p.client || "—")}</div>
+        <div><div class="tiny muted" style="text-transform:uppercase;letter-spacing:.04em">${esc(p.client || "\u2014")}</div>
           <div style="font-weight:600;font-size:14.5px;margin-top:2px">${esc(p.name)}</div></div>
         ${complete ? pill("Complete", "ok") : r.phase ? pill(r.phase + "%", "accent") : ""}
       </div>
@@ -1188,6 +1421,9 @@ function renderProjects() {
   return h + `</div>`;
 }
 
+window.__setFilter = (key, val) => { view.filters[key] = val || null; render(); };
+window.__clearFilters = () => { view.filters = {}; render(); };
+
 /* ---------------- PROJECT DETAIL ---------------- */
 function renderDetail() {
   const p = state.projects.find(x => x.id === view.projectId && !x.deleted);
@@ -1202,13 +1438,15 @@ function renderDetail() {
   let h = `<button class="backlink" onclick="window.__go('projects')">&larr; All projects</button>
   <div class="between" style="margin:8px 0 16px;align-items:flex-start">
     <div><h2 style="font-size:18px">${esc(p.name)}</h2>
-      <div class="small muted">${esc(p.client || "")} · Manager ${esc(personName(p.managerId) || "—")} · Lead ${esc(personName(p.leadId) || "—")}</div></div>
+      <div class="small muted">${esc(p.client || "")} \u00b7 Manager ${esc(personName(p.managerId) || "\u2014")} \u00b7 Lead ${esc(personName(p.leadId) || "\u2014")}</div></div>
     <div class="row">
       <button class="btn btn-s" onclick="window.__editProject('${p.id}')">Edit project</button>
       <button class="btn btn-s" onclick="window.__bulkAssign('${p.id}')">Bulk assign</button>
+      <button class="btn btn-s" onclick="window.__exportReport('${p.id}')">&#128240; Export</button>
       <button class="btn btn-p" onclick="window.__addStructure('${p.id}')">+ Structure</button>
     </div></div>`;
 
+  // Progress + Financials row
   h += `<div class="card card-p" style="margin-bottom:16px">
     <div class="between" style="margin-bottom:8px"><strong style="font-size:13.5px">Overall progress</strong>
       <span style="font-weight:600">${round(prog)}%</span></div>${bar(prog)}
@@ -1223,13 +1461,15 @@ function renderDetail() {
     h += `<div class="box" style="margin:0;cursor:pointer" onclick="window.__editPhase('${p.id}')">
       <div class="between"><strong class="small">${ph}%</strong>${pill(phase.kaStatus, kaKind(phase.kaStatus))}</div>
       <div style="margin:7px 0 5px">${bar(pp, paceKind(pi))}</div>
-      <div class="tiny muted">${round(pp)}% · ${(bp[ph] || []).length} str · due ${fmtShort(phase.deadline)}</div>
+      <div class="tiny muted">${round(pp)}% \u00b7 ${(bp[ph] || []).length} str \u00b7 due ${fmtShort(phase.deadline)}</div>
       ${ph !== "IFC" ? `<div class="tiny" style="margin-top:3px">${pill(phase.clientStatus || "Not submitted", clientKind(phase.clientStatus))}</div>` : ""}
       ${slip != null ? `<div class="tiny" style="color:${slip > 0 ? "var(--bad)" : "var(--ok)"}">${slip > 0 ? slip + " wd late" : Math.abs(slip) + " wd early"}</div>` : ""}
       ${waiting != null ? `<div class="tiny muted">${waiting} wd awaiting client</div>` : ""}
     </div>`;
   });
-  h += `</div></div>`;
+  h += `</div>`;
+
+  h += `</div>`;
 
   if (!st.length) {
     h += emptyState("No structures yet", "Add the structures in this substation to start tracking calc and drawing progress.",
@@ -1237,14 +1477,14 @@ function renderDetail() {
     return h;
   }
 
-  h += `<div class="sec-title">Structures × phases</div>
+  h += `<div class="sec-title">Structures \u00d7 phases</div>
   <div class="tbl-wrap grid-scroll"><table class="gridtbl"><thead><tr>
     <th class="namecol">Structure</th>${inc.map(ph => `<th>${ph}%</th>`).join("")}</tr></thead><tbody>`;
   names.forEach(nm => {
     h += `<tr><td class="namecol"><strong style="font-size:13px">${esc(nm)}</strong></td>`;
     inc.forEach(ph => {
       const s = (bp[ph] || []).find(x => x.name === nm);
-      if (!s) { h += `<td class="cell na"><span class="tiny muted">—</span></td>`; return; }
+      if (!s) { h += `<td class="cell na"><span class="tiny muted">\u2014</span></td>`; return; }
       const stale = isStale(s, today);
       h += `<td class="cell"><div class="gridcell">
         <div class="gc-row"><label>Calc</label>${calcGrid(s.calcSteps, s.id, true, CALC_STEPS)}</div>
@@ -1272,7 +1512,7 @@ function commentsBlock(scope) {
   ).sort((a, b) => String(b.atISO || "").localeCompare(String(a.atISO || "")));
   let h = `<div class="card card-p">
     <div class="f2" style="margin-bottom:8px">
-      <div class="f" style="margin:0"><input id="cmt-text" placeholder="Add a note…" /></div>
+      <div class="f" style="margin:0"><input id="cmt-text" placeholder="Add a note\u2026" /></div>
       <div class="f" style="margin:0"><input id="cmt-link" placeholder="Optional link (SharePoint, etc.)" /></div>
     </div>
     <div class="between"><span class="tiny muted">Posting as <strong>${esc(state.me || "unknown")}</strong></span>
@@ -1280,7 +1520,7 @@ function commentsBlock(scope) {
   if (list.length) {
     h += `<div class="hr"></div>`;
     list.forEach(c => {
-      h += `<div class="cmt"><div class="meta"><span class="who">${esc(c.who)}</span> · ${fmtDate(c.atISO)}</div>
+      h += `<div class="cmt"><div class="meta"><span class="who">${esc(c.who)}</span> \u00b7 ${fmtDate(c.atISO)}</div>
         <div>${esc(c.text)}</div>
         ${c.link ? `<a class="link-ico" href="${esc(c.link)}" target="_blank" rel="noopener">Open link &#8599;</a>` : ""}</div>`;
     });
@@ -1290,7 +1530,7 @@ function commentsBlock(scope) {
   return h + `</div>`;
 }
 
-/* ---------------- MY WORK ---------------- */
+/* ---------------- MY WORK (with filters) ---------------- */
 function renderMyWork() {
   if (!state.me) {
     return emptyState("Tell us who you are", "Pick your name so we can show your assignments.",
@@ -1301,21 +1541,46 @@ function renderMyWork() {
   const mine = me ? myAssignments(me.id).map(x => ({ ...x, dl: deadlineFor(x.s), sl: slackDaysFor(x.days, deadlineFor(x.s), me, today) }))
     .sort((a, b) => (a.sl == null ? 1e9 : a.sl) - (b.sl == null ? 1e9 : b.sl)) : [];
 
+  // Apply my-work filters
+  let filtered = mine;
+  if (view.filters.myRole) filtered = filtered.filter(x => x.role === view.filters.myRole);
+  if (view.filters.mySlack) {
+    if (view.filters.mySlack === "negative") filtered = filtered.filter(x => x.sl != null && x.sl < 0);
+    else if (view.filters.mySlack === "under3") filtered = filtered.filter(x => x.sl != null && x.sl >= 0 && x.sl < 3);
+  }
+
+  const roles = [...new Set(mine.map(x => x.role))];
+
   let h = `<div class="between" style="margin-bottom:16px">
     <div><h2 style="font-size:17px">My work</h2>
-      <div class="small muted">${esc(state.me)} · every role, sorted by time to spare</div></div>
+      <div class="small muted">${esc(state.me)} \u00b7 every role, sorted by time to spare</div></div>
     <button class="btn btn-s" onclick="window.__whoami()">Change name</button></div>`;
 
-  if (!mine.length) {
-    return h + emptyState("Nothing assigned", "Roles assigned to you — engineer, designer, or reviewer — will appear here.");
+  // Filter bar for My Work
+  h += `<div class="filter-bar">
+    <span style="font-size:12px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em">Filter:</span>
+    <select onchange="window.__setMyFilter('myRole',this.value)">
+      <option value="">All roles</option>
+      ${roles.map(r => `<option value="${esc(r)}" ${view.filters.myRole === r ? "selected" : ""}>${esc(r)}</option>`).join("")}
+    </select>
+    <select onchange="window.__setMyFilter('mySlack',this.value)">
+      <option value="">All deadlines</option>
+      <option value="negative" ${view.filters.mySlack === "negative" ? "selected" : ""}>Behind deadline</option>
+      <option value="under3" ${view.filters.mySlack === "under3" ? "selected" : ""}>Less than 3 days spare</option>
+    </select>
+    ${(view.filters.myRole || view.filters.mySlack) ? `<button class="btn btn-s btn-sm" onclick="window.__clearMyFilters()">Clear</button>` : ""}
+  </div>`;
+
+  if (!filtered.length) {
+    return h + emptyState("Nothing assigned", "Roles assigned to you \u2014 engineer, designer, or reviewer \u2014 will appear here.");
   }
-  const neg = mine.filter(x => x.sl != null && x.sl < 0);
+  const neg = filtered.filter(x => x.sl != null && x.sl < 0);
   if (neg.length) {
     h += `<div class="badbox"><strong>${neg.length} assignment${neg.length === 1 ? "" : "s"} can't finish on time</strong> at current estimates. Talk to your PM about reassigning or moving a date.</div>`;
   }
   h += `<div class="tbl-wrap"><table class="tbl"><thead><tr>
     <th>Structure</th><th>Project / phase</th><th>Your role</th><th>Remaining</th><th>Deadline</th><th>Time to spare</th><th></th></tr></thead><tbody>`;
-  mine.forEach(({ s, role, days, dl, sl }) => {
+  filtered.forEach(({ s, role, days, dl, sl }) => {
     const p = state.projects.find(x => x.id === s.projectId);
     h += `<tr><td><strong>${esc(s.name)}</strong></td>
       <td class="small"><a href="#" onclick="event.preventDefault();window.__openProject('${s.projectId}')">${esc(p ? p.name : "?")}</a>
@@ -1323,11 +1588,13 @@ function renderMyWork() {
       <td class="small">${esc(role)}</td>
       <td class="small">${round(days, 1)} d</td>
       <td class="small">${fmtShort(dl)}</td>
-      <td>${sl == null ? '<span class="tiny muted">—</span>' : pill(spareText(sl), spareKind(sl))}</td>
+      <td>${sl == null ? '<span class="tiny muted">\u2014</span>' : pill(spareText(sl), spareKind(sl))}</td>
       <td><button class="iconbtn" onclick="window.__editStructure('${s.id}')" title="Edit">&#9998;</button></td></tr>`;
   });
   return h + `</tbody></table></div>`;
 }
+window.__setMyFilter = (key, val) => { view.filters[key] = val || null; render(); };
+window.__clearMyFilters = () => { delete view.filters.myRole; delete view.filters.mySlack; render(); };
 
 /* ---------------- ACTIVITY FEED ---------------- */
 function activityListHtml(q) {
@@ -1342,7 +1609,7 @@ function activityListHtml(q) {
   let h = `<div class="card card-p"><div class="afeed">`;
   items.slice(0, 200).forEach(a => {
     h += `<div class="aitem"><div class="adot"></div><div class="atext">
-      <span class="awho">${esc(a.who)}</span> ${esc(a.action.toLowerCase())}${a.detail ? ` — ${esc(a.detail)}` : ""}
+      <span class="awho">${esc(a.who)}</span> ${esc(a.action.toLowerCase())}${a.detail ? ` \u2014 ${esc(a.detail)}` : ""}
     </div><div class="awhen">${fmtShort(a.atISO)}</div></div>`;
   });
   h += `</div></div>`;
@@ -1357,12 +1624,159 @@ window.__filterActivity = (q) => {
 function renderActivity() {
   let h = `<div class="between" style="margin-bottom:16px">
     <div><h2 style="font-size:17px">Activity</h2><div class="small muted">Everything that's changed, newest first</div></div>
-    <input id="act-filter" placeholder="Filter by person or project…" oninput="window.__filterActivity(this.value)"
+    <input id="act-filter" placeholder="Filter by person or project\u2026" oninput="window.__filterActivity(this.value)"
       style="width:240px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:13px" value="${esc(view.activityFilter || "")}" />
   </div>`;
   h += `<div id="activity-list">${activityListHtml(view.activityFilter)}</div>`;
   return h;
 }
+
+window.__exportReport = (projectId) => {
+  const p = state.projects.find(x => x.id === projectId);
+  if (!p) return;
+  const today = new Date();
+  const st = structuresOf(projectId);
+  const bp = byPhase(st);
+  const inc = includedPhases(p);
+  const prog = projProgress(p);
+
+  let reportHtml = `<div class="report-preview" id="report-preview">
+    <h2>${esc(p.name)} \u2014 Status Report</h2>
+    <div class="rp-section">
+      <h3>Project Overview</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+        <div><strong>Client:</strong> ${esc(p.client || "\u2014")}</div>
+        <div><strong>Manager:</strong> ${esc(personName(p.managerId) || "\u2014")}</div>
+        <div><strong>Lead:</strong> ${esc(personName(p.leadId) || "\u2014")}</div>
+        <div><strong>Generated:</strong> ${fmtDate(today)}</div>
+      </div>
+    </div>
+    <div class="rp-section">
+      <h3>Overall Progress: ${round(prog)}%</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+        <div><strong>Structures:</strong> ${st.length}</div>
+      </div>
+    </div>
+    <div class="rp-section">
+      <h3>Phase Status</h3>
+      <table class="rp-table"><thead><tr><th>Phase</th><th>Status</th><th>Progress</th><th>Deadline</th><th>Client</th><th>Structures</th></tr></thead><tbody>`;
+  inc.forEach(ph => {
+    const phase = p.phases[ph];
+    const pp = phaseProgress(phase, bp[ph] || [], p.calcWeight || 0.6);
+    reportHtml += `<tr><td><strong>${ph}%</strong></td><td>${phase.kaStatus}</td><td>${round(pp)}%</td><td>${fmtShort(phase.deadline)}</td><td>${ph !== "IFC" ? phase.clientStatus : "\u2014"}</td><td>${(bp[ph] || []).length}</td></tr>`;
+  });
+  reportHtml += `</tbody></table></div>`;
+
+  // Structure list
+  reportHtml += `<div class="rp-section"><h3>Structure Summary</h3>
+    <table class="rp-table"><thead><tr><th>Structure</th><th>Phase</th><th>Engineer</th><th>Designer</th><th>Calc %</th><th>Draw %</th><th>Blocked</th></tr></thead><tbody>`;
+  st.forEach(s => {
+    reportHtml += `<tr><td><strong>${esc(s.name)}</strong></td><td>${esc(s.phase)}%</td><td>${esc(personName(s.engineerId) || "\u2014")}</td><td>${esc(personName(s.designerId) || "\u2014")}</td><td>${round(calcProgress(s))}%</td><td>${round(drawProgress(s))}%</td><td>${s.blockedReason ? esc(s.blockedReason) : "\u2014"}</td></tr>`;
+  });
+  reportHtml += `</tbody></table></div>`;
+
+  // Risk summary
+  const risk = projectRisk(p, byPhase(st), today);
+  reportHtml += `<div class="rp-section"><h3>Risk Assessment</h3>
+    <div style="font-size:13px"><strong>Score:</strong> ${risk.score} \u00b7 <strong>Active phase:</strong> ${risk.phase || "\u2014"}</div>`;
+  if (risk.reasons.length) {
+    reportHtml += `<div style="font-size:13px;margin-top:4px">${risk.reasons.map(r => pill(r, "warn")).join(" ")}</div>`;
+  }
+  reportHtml += `</div>`;
+
+  // Footer
+  reportHtml += `<div class="rp-section" style="margin-top:20px;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-3)">
+    Generated by Civil Project Tracker \u00b7 ${new Date().toLocaleString()}
+  </div></div>`;
+
+  // Show the preview and export options
+  openModal({
+    wide: true,
+    body: `<h3>Export Report: ${esc(p.name)}</h3>
+      <p class="sub">Preview below. Choose your export format.</p>
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn-p" onclick="window.__downloadReportHtml('${projectId}')">Download HTML</button>
+        <button class="btn btn-s" onclick="window.__downloadReportPdf('${projectId}')">Download PDF</button>
+      </div>
+      ${reportHtml}`
+  });
+};
+
+window.__downloadReportHtml = (projectId) => {
+  const el = document.getElementById("report-preview");
+  if (!el) return;
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Project Report</title>
+    <style>body{font-family:Inter,system-ui,sans-serif;padding:24px;max-width:900px;margin:0 auto;color:#16191d;font-size:14px}
+    table{width:100%;border-collapse:collapse;font-size:13px}th{background:#f1f3f5;padding:6px 8px;text-align:left}
+    td{padding:5px 8px;border-bottom:1px solid #e7e9ec}.pill{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+    </style></head><body>${el.innerHTML}</body></html>`;
+  const blob = new Blob([html], { type: "text/html" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `report_${projectId}.html`;
+  a.click();
+  toast("HTML report downloaded");
+};
+
+window.__downloadReportPdf = (projectId) => {
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const p = state.projects.find(x => x.id === projectId);
+    const st = structuresOf(projectId);
+    const bp = byPhase(st);
+    const inc = includedPhases(p);
+    const prog = projProgress(p);
+    let y = 20;
+
+    doc.setFontSize(18);
+    doc.text(p.name + " \u2014 Status Report", 14, y); y += 10;
+    doc.setFontSize(10);
+    doc.text(`Client: ${p.client || "\u2014"} | Manager: ${personName(p.managerId) || "\u2014"} | Generated: ${fmtDate(new Date())}`, 14, y); y += 8;
+    doc.text(`Overall: ${round(prog)}% | Structures: ${st.length}`, 14, y); y += 12;
+
+    // Phases
+    doc.setFontSize(14); doc.text("Phase Status", 14, y); y += 6;
+    doc.setFontSize(9);
+    doc.text("Phase", 14, y); doc.text("Status", 40, y); doc.text("Progress", 65, y); doc.text("Deadline", 90, y); doc.text("Client", 120, y); doc.text("Str", 155, y);
+    y += 2; doc.setDrawColor(200); doc.line(14, y, 196, y); y += 6;
+    inc.forEach(ph => {
+      const phase = p.phases[ph];
+      const pp = phaseProgress(phase, bp[ph] || [], p.calcWeight || 0.6);
+      doc.text(ph + "%", 14, y); doc.text(phase.kaStatus, 40, y); doc.text(round(pp) + "%", 65, y);
+      doc.text(fmtShort(phase.deadline), 90, y); doc.text(ph !== "IFC" ? (phase.clientStatus || "\u2014") : "\u2014", 120, y);
+      doc.text(String((bp[ph] || []).length), 155, y); y += 5;
+    });
+    y += 8;
+
+    // Structures
+    if (y > 240) { doc.addPage(); y = 20; }
+    doc.setFontSize(14); doc.text("Structure Summary", 14, y); y += 6;
+    doc.setFontSize(9);
+    doc.text("Structure", 14, y); doc.text("Phase", 70, y); doc.text("Engineer", 85, y); doc.text("Calc%", 120, y); doc.text("Draw%", 140, y); doc.text("Blocked", 155, y);
+    y += 2; doc.setDrawColor(200); doc.line(14, y, 196, y); y += 6;
+    st.forEach(s => {
+      if (y > 270) { doc.addPage(); y = 20; doc.setFontSize(9); }
+      doc.text(s.name.length > 30 ? s.name.slice(0, 30) + "..." : s.name, 14, y);
+      doc.text(s.phase + "%", 70, y); doc.text((personName(s.engineerId) || "\u2014").slice(0, 16), 85, y);
+      doc.text(round(calcProgress(s)) + "%", 120, y); doc.text(round(drawProgress(s)) + "%", 140, y);
+      doc.text(s.blockedReason ? s.blockedReason.slice(0, 20) : "\u2014", 155, y); y += 5;
+    });
+
+    // Risk
+    const risk = projectRisk(p, byPhase(st), new Date());
+    if (y > 250) { doc.addPage(); y = 20; }
+    y += 8; doc.setFontSize(14); doc.text("Risk Assessment", 14, y); y += 6;
+    doc.setFontSize(10);
+    doc.text(`Score: ${risk.score} | Active phase: ${risk.phase || "\u2014"}`, 14, y); y += 6;
+    risk.reasons.forEach(r => { doc.text("\u2022 " + r, 14, y); y += 5; });
+
+    doc.save(`report_${p.name.replace(/\s+/g, "_")}.pdf`);
+    toast("PDF report downloaded");
+  } catch (e) {
+    toast("PDF export failed: " + e.message);
+  }
+};
 
 /* ---------------- TEAM & TYPES ---------------- */
 function renderTeam() {
@@ -1376,9 +1790,9 @@ function renderTeam() {
   } else {
     h += `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Name</th><th>Roles</th><th>Availability</th><th></th></tr></thead><tbody>`;
     teamPeople.forEach(p => {
-      const av = (p.availability || []).map(b => `${fmtShort(b.from)}–${fmtShort(b.to)} @ ${b.percent}%`).join(", ");
+      const av = (p.availability || []).map(b => `${fmtShort(b.from)}\u2013${fmtShort(b.to)} @ ${b.percent}%`).join(", ");
       h += `<tr><td>${avatar(p.name)} <span style="margin-left:6px;font-weight:500">${esc(p.name)}</span></td>
-        <td class="small">${esc((p.roles || []).join(", ") || "—")}</td>
+        <td class="small">${esc((p.roles || []).join(", ") || "\u2014")}</td>
         <td class="small muted">${esc(av || "Full availability")}</td>
         <td style="text-align:right"><button class="iconbtn" onclick="window.__editPerson('${p.id}')">&#9998;</button>
           <button class="iconbtn" onclick="window.__delPerson('${p.id}')">&#10005;</button></td></tr>`;
@@ -1441,11 +1855,11 @@ function projectModal(id) {
   const people = activePeople();
   openModal({
     wide: true,
-    body: `<h3>${p ? "Edit project" : "New project"}</h3><p class="sub">Phases can be excluded if the client skips them — progress reweights automatically.</p>
+    body: `<h3>${p ? "Edit project" : "New project"}</h3><p class="sub">Phases can be excluded if the client skips them \u2014 progress reweights automatically.</p>
     <div class="f2"><div class="f"><label>Project name</label><input id="p-name" value="${esc(p ? p.name : "")}" placeholder="Golf Mill substation" /></div>
       <div class="f"><label>Client</label><input id="p-client" value="${esc(p ? p.client : "")}" placeholder="COMED" /></div></div>
-    <div class="f3"><div class="f"><label>Manager</label><select id="p-mgr">${opts(people, p ? p.managerId : "", "id", "name", "—")}</select></div>
-      <div class="f"><label>Lead engineer</label><select id="p-lead">${opts(people, p ? p.leadId : "", "id", "name", "—")}</select></div>
+    <div class="f3"><div class="f"><label>Manager</label><select id="p-mgr">${opts(people, p ? p.managerId : "", "id", "name", "\u2014")}</select></div>
+      <div class="f"><label>Lead engineer</label><select id="p-lead">${opts(people, p ? p.leadId : "", "id", "name", "\u2014")}</select></div>
       <div class="f"><label>Calc weight</label><select id="p-cw">
         ${[["0.6", "60% calc / 40% drawing"], ["0.5", "50 / 50"], ["0.7", "70 / 30"]].map(([v, l]) =>
       `<option value="${v}" ${p && String(p.calcWeight) === v ? "selected" : ""}>${l}</option>`).join("")}
@@ -1456,7 +1870,7 @@ function projectModal(id) {
       const facts = [
         d.startDate ? `Started ${fmtShort(d.startDate)}` : null,
         d.submittedDate ? `Submitted ${fmtShort(d.submittedDate)}` : null
-      ].filter(Boolean).join(" · ");
+      ].filter(Boolean).join(" \u00b7 ");
       const clientLocked = d.kaStatus !== "Submitted";
       return `<div class="box"><div class="row" style="gap:14px;flex-wrap:wrap;align-items:flex-end">
         <label class="row" style="gap:6px;font-size:13px;min-width:70px">
@@ -1467,7 +1881,7 @@ function projectModal(id) {
         ${ph !== "IFC" ? `<div class="f" style="margin:0;flex:1;min-width:170px"><label>Client status</label>
           <select id="ph-${ph}-cl" ${clientLocked ? "disabled" : ""}>${opts(CLIENT_STATUS, d.clientStatus || "Not submitted")}</select>
           ${clientLocked ? '<div class="tiny muted" style="margin-top:3px">Unlocks once submitted</div>' : ""}</div>` : ""}
-        <div class="datefact" id="ph-${ph}-facts" style="flex-basis:100%">${facts || "Not started yet — dates stamp automatically."}</div>
+        <div class="datefact" id="ph-${ph}-facts" style="flex-basis:100%">${facts || "Not started yet \u2014 dates stamp automatically."}</div>
       </div></div>`;
     }).join("")}
     <div id="impact"></div>
@@ -1495,8 +1909,6 @@ function projectModal(id) {
         else phaseData.kaStatus = newKa;
         if (ph !== "IFC") {
           const clSel = el(`ph-${ph}-cl`);
-          // Skip reading the dropdown when K&A just flipped to Submitted this save: its value is
-          // still whatever was rendered before the unlock, and would clobber the auto-set status.
           if (clSel && !clSel.disabled && !kaJustSubmitted) phaseData.clientStatus = clSel.value;
         }
         phases[ph] = phaseData;
@@ -1532,12 +1944,12 @@ function showImpact(project, phase, newDeadline) {
   });
   const names = Object.keys(people);
   box.innerHTML = names.length
-    ? `<div class="warnbox"><strong>Heads up:</strong> that date doesn't leave ${names.length} person${names.length === 1 ? "" : "s"} enough time — ${names.map(n => `${esc(n)}: ${esc(people[n].join(", "))}`).join(" · ")}</div>`
+    ? `<div class="warnbox"><strong>Heads up:</strong> that date doesn't leave ${names.length} person${names.length === 1 ? "" : "s"} enough time \u2014 ${names.map(n => `${esc(n)}: ${esc(people[n].join(", "))}`).join(" \u00b7 ")}</div>`
     : `<div class="okbox">No one goes negative with that date.</div>`;
 }
 window.__editPhase = (pid) => projectModal(pid);
 
-/* ---------------- structure modal (CL-15 redesign) ---------------- */
+/* ---------------- structure modal ---------------- */
 window.__addStructure = (pid) => structureModal(null, pid);
 window.__editStructure = (sid) => structureModal(sid, null);
 function structureModal(sid, pid) {
@@ -1554,7 +1966,7 @@ function structureModal(sid, pid) {
   };
   const engineers = withCurrent(activePeople().filter(p => (p.roles || []).includes("Engineer")), s ? s.engineerId : "");
   const designers = withCurrent(activePeople().filter(p => (p.roles || []).includes("Designer")), s ? s.designerId : "");
-  const reviewers = activePeople(); // anyone can review
+  const reviewers = activePeople();
   const steps = (s && s.calcSteps) || {};
 
   const calcStepsHtml = CALC_STEPS.map(st => `
@@ -1569,30 +1981,30 @@ function structureModal(sid, pid) {
     body: `<h3>${s ? "Edit structure" : "Add structure"}</h3><p class="sub">${esc(proj ? proj.name : "")}</p>
     <div class="f2"><div class="f"><label>Structure name</label><input id="s-name" value="${esc(s ? s.name : "")}" placeholder="STR-04 dead-end" /></div>
       <div class="f"><label>Phase</label><select id="s-phase">${opts(inc.map(p => ({ v: p, l: p + "%" })), s ? s.phase : inc[0], "v", "l")}</select></div></div>
-    <div class="f2"><div class="f"><label>Structure type</label><select id="s-type">${opts(state.structureTypes, s ? s.typeId : "", "id", "name", "— none —")}</select></div>
-      <div class="f"><label>Blocked / waiting on</label><select id="s-block">${opts(BLOCK_REASONS, s ? s.blockedReason : "", null, null, "— not blocked —")}</select></div></div>
+    <div class="f2"><div class="f"><label>Structure type</label><select id="s-type">${opts(state.structureTypes, s ? s.typeId : "", "id", "name", "\u2014 none \u2014")}</select></div>
+      <div class="f"><label>Blocked / waiting on</label><select id="s-block">${opts(BLOCK_REASONS, s ? s.blockedReason : "", null, null, "\u2014 not blocked \u2014")}</select></div></div>
 
     <div class="row" style="gap:14px;align-items:flex-start;margin-top:6px">
       <div class="rolebox" style="flex:1">
         <div class="rb-head">Calc</div>
-        <div class="f2"><div class="f"><label>Engineer</label><select id="s-eng">${opts(engineers, s ? s.engineerId : "", "id", "name", "— unassigned —")}</select></div>
+        <div class="f2"><div class="f"><label>Engineer</label><select id="s-eng">${opts(engineers, s ? s.engineerId : "", "id", "name", "\u2014 unassigned \u2014")}</select></div>
           <div class="f"><label>Estimate (days)</label><input type="number" step="0.5" id="s-ce" value="${s ? s.calcEstDays || "" : ""}" /></div></div>
-        <div class="f"><label>Reviewer</label><select id="s-crev">${opts(withCurrent(reviewers, s ? s.calcReviewerId : ""), s ? s.calcReviewerId : "", "id", "name", "— unassigned —")}</select></div>
+        <div class="f"><label>Reviewer</label><select id="s-crev">${opts(withCurrent(reviewers, s ? s.calcReviewerId : ""), s ? s.calcReviewerId : "", "id", "name", "\u2014 unassigned \u2014")}</select></div>
         ${calcStepsHtml}
       </div>
       <div class="rolebox" style="flex:1">
         <div class="rb-head">Drawing</div>
-        <div class="f2"><div class="f"><label>Designer</label><select id="s-des">${opts(designers, s ? s.designerId : "", "id", "name", "— unassigned —")}</select></div>
+        <div class="f2"><div class="f"><label>Designer</label><select id="s-des">${opts(designers, s ? s.designerId : "", "id", "name", "\u2014 unassigned \u2014")}</select></div>
           <div class="f"><label>Estimate (days)</label><input type="number" step="0.5" id="s-de" value="${s ? s.drawEstDays || "" : ""}" /></div></div>
-        <div class="f"><label>Q1 Self check</label><div class="small muted" style="padding:6px 0">Done by the designer once drafting is ready — same estimate above covers this.</div></div>
-        <div class="f"><label>Q2 reviewer (engineer check)</label><select id="s-q2">${opts(withCurrent(reviewers, s ? s.drawQ2ReviewerId : ""), s ? s.drawQ2ReviewerId : "", "id", "name", "— unassigned —")}</select></div>
-        <div class="f"><label>Q3 reviewer (independent)</label><select id="s-q3">${opts(withCurrent(reviewers, s ? s.drawQ3ReviewerId : ""), s ? s.drawQ3ReviewerId : "", "id", "name", "— unassigned —")}</select></div>
-        <div class="f"><label>Q4 reviewer (PE review)</label><select id="s-q4">${opts(withCurrent(reviewers, s ? s.drawQ4ReviewerId : ""), s ? s.drawQ4ReviewerId : "", "id", "name", "— unassigned —")}</select></div>
+        <div class="f"><label>Q1 Self check</label><div class="small muted" style="padding:6px 0">Done by the designer once drafting is ready \u2014 same estimate above covers this.</div></div>
+        <div class="f"><label>Q2 reviewer (engineer check)</label><select id="s-q2">${opts(withCurrent(reviewers, s ? s.drawQ2ReviewerId : ""), s ? s.drawQ2ReviewerId : "", "id", "name", "\u2014 unassigned \u2014")}</select></div>
+        <div class="f"><label>Q3 reviewer (independent)</label><select id="s-q3">${opts(withCurrent(reviewers, s ? s.drawQ3ReviewerId : ""), s ? s.drawQ3ReviewerId : "", "id", "name", "\u2014 unassigned \u2014")}</select></div>
+        <div class="f"><label>Q4 reviewer (PE review)</label><select id="s-q4">${opts(withCurrent(reviewers, s ? s.drawQ4ReviewerId : ""), s ? s.drawQ4ReviewerId : "", "id", "name", "\u2014 unassigned \u2014")}</select></div>
         <div class="f" style="margin-top:6px"><label>Drawing stage reached</label>${qaBar(s ? s.drawQ : 0, s ? s.id : "new", "drawQ")}</div>
       </div>
     </div>
 
-    ${s ? `<div class="hr"></div><div class="sec-title" style="margin:0 0 8px">Notes on this structure</div>${commentsBlock({ projectId, structureId: s.id })}` : ""}
+    ${s ? `<div class="sec-title">Notes on this structure</div>${commentsBlock({ projectId, structureId: s.id })}` : ""}
     <div class="acts">${s ? `<button class="btn btn-d" id="s-del">Delete</button><button class="btn btn-s" id="s-dup">Duplicate</button>` : ""}
       <button class="btn btn-s" onclick="window.__closeModal()">Cancel</button>
       <button class="btn btn-p" id="s-save">Save</button></div>`
@@ -1615,6 +2027,7 @@ function structureModal(sid, pid) {
         blockedReason: val("s-block"), calcSteps: newSteps
       };
       closeModal();
+      notifyReassignments(s, data, name);
       if (s) await updateStructure(s.id, data, name); else await addStructure(data);
       render();
       toast(s ? `"${name}" saved` : `"${name}" added`);
@@ -1628,7 +2041,7 @@ function structureModal(sid, pid) {
       closeModal();
       const newId = await duplicateStructure(s.id, { name: `${s.name} (copy)` });
       render();
-      toast(`Duplicated "${s.name}" — rename and adjust as needed`);
+      toast(`Duplicated "${s.name}" \u2014 rename and adjust as needed`);
       structureModal(newId, null);
     };
   });
@@ -1652,7 +2065,7 @@ window.__setQ = async (sid, field, clicked) => {
   if (target < cur) {
     openModal({
       body: `<h3>Send back to Q${target < 0 ? 0 : target}?</h3>
-      <p class="sub">${esc(s.name)} — drawing track. Recording why keeps your rework history honest.</p>
+      <p class="sub">${esc(s.name)} \u2014 drawing track. Recording why keeps your rework history honest.</p>
       <div class="f"><label>Reason for rejection</label><input id="q-reason" placeholder="e.g. anchor bolt check missing" /></div>
       <div class="acts"><button class="btn btn-s" onclick="window.__closeModal()">Cancel</button>
         <button class="btn btn-p" id="q-back">Send back</button></div>`
@@ -1662,17 +2075,17 @@ window.__setQ = async (sid, field, clicked) => {
         closeModal();
         const rw = Number(s.reworkCount || 0) + 1;
         await updateStructure(sid, { [field]: Math.max(0, target), reworkCount: rw }, `${s.name} drawing sent back to Q${Math.max(0, target)}`);
-        if (reason) await addComment({ text: `Drawing rejected at Q${cur} → back to Q${Math.max(0, target)}: ${reason}`, projectId: s.projectId, structureId: sid, link: "" });
+        if (reason) await addComment({ text: `Drawing rejected at Q${cur} \u2192 back to Q${Math.max(0, target)}: ${reason}`, projectId: s.projectId, structureId: sid, link: "" });
         render();
       };
     });
     return;
   }
-  await updateStructure(sid, { [field]: target }, `${s.name} drawing → Q${target}`);
+  await updateStructure(sid, { [field]: target }, `${s.name} drawing \u2192 Q${target}`);
   render();
 };
 
-/* ---------------- team & type modals (unchanged from v1) ---------------- */
+/* ---------------- team & type modals ---------------- */
 window.__editPerson = (id) => {
   const p = id ? state.people.find(x => x.id === id) : null;
   const roles = ["Manager", "Lead engineer", "Engineer", "Designer"];
@@ -1747,8 +2160,27 @@ window.__addComment = async (projectId, structureId) => {
   if (!state.me) { window.__whoami(); return; }
   await addComment({ text, link, projectId: projectId || null, structureId: structureId || null });
   setVal("cmt-text", ""); setVal("cmt-link", "");
+  notifyOnComment(projectId, structureId, text);
   render();
 };
+function notifyOnComment(projectId, structureId, text) {
+  let names = [];
+  if (structureId) {
+    const s = state.structures.find(x => x.id === structureId);
+    if (s) {
+      names = [s.engineerId, s.calcReviewerId, s.designerId, s.drawQ2ReviewerId, s.drawQ3ReviewerId, s.drawQ4ReviewerId]
+        .map(personName).filter(Boolean);
+    }
+  } else if (projectId) {
+    const p = state.projects.find(x => x.id === projectId);
+    if (p) names = [p.managerId, p.leadId].map(personName).filter(Boolean);
+  }
+  names = [...new Set(names)].filter(n => n !== state.me);
+  if (names.length) {
+    const snippet = text.length > 60 ? text.slice(0, 60) + "\u2026" : text;
+    triggerNotification("New note", `${state.me}: ${snippet}`, names);
+  }
+}
 
 const ROLE_LABELS = { engineerId: "Engineer (calc)", calcReviewerId: "Calc reviewer", designerId: "Designer (drawing)",
   drawQ2ReviewerId: "Drawing Q2 reviewer", drawQ3ReviewerId: "Drawing Q3 reviewer", drawQ4ReviewerId: "Drawing Q4 reviewer" };
@@ -1771,7 +2203,9 @@ window.__suggest = (sid, field) => {
 };
 window.__reassign = async (sid, field, pid) => {
   closeModal();
+  const s = state.structures.find(x => x.id === sid);
   await updateStructure(sid, { [field]: pid }, "reassigned");
+  if (s) notifyReassignments(s, { [field]: pid }, s.name);
   render();
 };
 
@@ -1792,7 +2226,7 @@ window.__bulkAssign = (projectId) => {
     body: `<h3>Bulk assign</h3><p class="sub">Pick a role and a person, choose the structures, then apply.</p>
     <div class="f2">
       <div class="f"><label>Role</label><select id="bulk-role">${opts(BULK_ROLES.map(r => ({ v: r[0], l: r[1] })), "", "v", "l")}</select></div>
-      <div class="f"><label>Assign to</label><select id="bulk-person">${opts(activePeople(), "", "id", "name", "— choose —")}</select></div>
+      <div class="f"><label>Assign to</label><select id="bulk-person">${opts(activePeople(), "", "id", "name", "\u2014 choose \u2014")}</select></div>
     </div>
     <div class="row" style="margin-bottom:8px;gap:14px">
       <label class="toggle-row"><input type="checkbox" id="bulk-all" onchange="document.querySelectorAll('.bulk-chk').forEach(c=>c.checked=this.checked)" /> Select all</label>
@@ -1807,7 +2241,7 @@ window.__bulkAssign = (projectId) => {
       const role = el("bulk-role").value;
       const meta = BULK_ROLES.find(r => r[0] === role);
       const pool = meta && meta[2] ? activePeople().filter(p => (p.roles || []).includes(meta[2])) : activePeople();
-      el("bulk-person").innerHTML = opts(pool, "", "id", "name", "— choose —");
+      el("bulk-person").innerHTML = opts(pool, "", "id", "name", "\u2014 choose \u2014");
     };
     el("bulk-apply").onclick = async () => {
       const role = val("bulk-role"), person = val("bulk-person");
@@ -1845,7 +2279,7 @@ window.__showDrawingBucket = (key) => {
         <td class="small">${fmtShort(s.designerAssignedAt)}</td>
         <td class="small">${fmtShort(dl)}</td>
         <td>${avatar(personName(s.designerId))} <span class="small">${esc(personName(s.designerId) || "Unassigned")}</span></td>
-        <td class="tiny muted">${esc(flags.join(", ") || "—")}</td></tr>`;
+        <td class="tiny muted">${esc(flags.join(", ") || "\u2014")}</td></tr>`;
     }).join("")}</tbody></table></div>`}
     <div class="acts"><button class="btn btn-s" onclick="window.__closeModal()">Close</button></div>`
   });
@@ -1884,6 +2318,13 @@ onChange(() => {
 });
 start(err => banner("Connection problem: " + err.message));
 el("who").onclick = () => window.__whoami();
+
+// Handle shared link (client collaboration v2 ready)
+const shareParam = new URLSearchParams(window.location.search).get("share");
+if (shareParam) {
+  toast("Shared project view \u2014 client mode (full feature in v3)");
+}
+
 render();
 
 </script>
